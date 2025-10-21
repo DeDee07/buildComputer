@@ -387,11 +387,371 @@ int main() {
             if (feedbackTimer == 0) feedbackMessage = "";
         }
         
-        // Variables for input handling (to be used in event handlers)
-        // Vector2 mousePos = GetMousePosition();
-        // bool mouseClick = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
-        // float mouseWheel = GetMouseWheelMove();
+        Vector2 mousePos = GetMousePosition();
+        bool mouseClick = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+        float mouseWheel = GetMouseWheelMove();
         
+        // Input Handlers
+        if (currentScreen == LOGIN) {
+            if (loginFocusUser) handleTextInput(loginUser, 30);
+            else handleTextInput(loginPass, 30);
+            
+            if (IsKeyPressed(KEY_TAB)) loginFocusUser = !loginFocusUser;
+            
+            if (mouseClick) {
+                if (CheckCollisionPointRec(mousePos, {200, 280, 400, 40})) loginFocusUser = true;
+                else if (CheckCollisionPointRec(mousePos, {200, 380, 400, 40})) loginFocusUser = false;
+                else if (CheckCollisionPointRec(mousePos, {250, 460, 140, 50})) {
+                    bool found = false;
+                    for (auto &acc : accounts) {
+                        if (acc.username == loginUser && acc.password == loginPass) {
+                            currentUser = acc.username;
+                            isCurrentUserAdmin = acc.isAdmin;
+                            currentScreen = MENU;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        feedbackMessage = "Usuario ou senha incorretos!";
+                        feedbackTimer = 180;
+                    }
+                    loginUser = loginPass = "";
+                } else if (CheckCollisionPointRec(mousePos, {410, 460, 140, 50})) {
+                    currentScreen = REGISTER;
+                    registerUser = registerPass = registerPassConfirm = registerMessage = "";
+                    registerFocusField = 0;
+                }
+            }
+            
+            if (IsKeyPressed(KEY_ENTER)) {
+                bool found = false;
+                for (auto &acc : accounts) {
+                    if (acc.username == loginUser && acc.password == loginPass) {
+                        currentUser = acc.username;
+                        isCurrentUserAdmin = acc.isAdmin;
+                        currentScreen = MENU;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    feedbackMessage = "Usuario ou senha incorretos!";
+                    feedbackTimer = 180;
+                }
+            }
+        }
+        
+        else if (currentScreen == REGISTER) {
+            if (registerFocusField == 0) handleTextInput(registerUser, 30);
+            else if (registerFocusField == 1) handleTextInput(registerPass, 30);
+            else if (registerFocusField == 2) handleTextInput(registerPassConfirm, 30);
+            
+            if (IsKeyPressed(KEY_TAB)) registerFocusField = (registerFocusField + 1) % 3;
+            
+            if (mouseClick) {
+                if (CheckCollisionPointRec(mousePos, {200, 210, 400, 40})) registerFocusField = 0;
+                else if (CheckCollisionPointRec(mousePos, {200, 300, 400, 40})) registerFocusField = 1;
+                else if (CheckCollisionPointRec(mousePos, {200, 390, 400, 40})) registerFocusField = 2;
+                else if (CheckCollisionPointRec(mousePos, {250, 500, 140, 50})) {
+                    if (registerUser.empty() || registerPass.empty()) {
+                        registerMessage = "Preencha todos os campos!";
+                    } else if (registerPass != registerPassConfirm) {
+                        registerMessage = "Senhas nao coincidem!";
+                    } else {
+                        bool exists = false;
+                        for (auto &acc : accounts) {
+                            if (acc.username == registerUser) {
+                                exists = true;
+                                break;
+                            }
+                        }
+                        if (exists) {
+                            registerMessage = "Usuario ja existe!";
+                        } else {
+                            accounts.push_back({registerUser, registerPass, false});
+                            registerMessage = "Conta criada com sucesso!";
+                            feedbackTimer = 120;
+                        }
+                    }
+                } else if (CheckCollisionPointRec(mousePos, {410, 500, 140, 50})) {
+                    currentScreen = LOGIN;
+                }
+            }
+        }
+        
+        else if (currentScreen == MENU) {
+            if (mouseClick) {
+                if (CheckCollisionPointRec(mousePos, {250, 160, 300, 60})) currentScreen = COMO_MONTAR;
+                else if (CheckCollisionPointRec(mousePos, {250, 240, 300, 60})) currentScreen = ESCOLHER_PECAS;
+                else if (CheckCollisionPointRec(mousePos, {250, 320, 300, 60})) currentScreen = VER_PRECOS;
+                else if (CheckCollisionPointRec(mousePos, {250, 400, 300, 60}) && isCurrentUserAdmin) {
+                    currentScreen = ADMIN_PANEL;
+                    adminSelectedIndex = -1;
+                    adminScrollOffset = 0;
+                }
+                else if (CheckCollisionPointRec(mousePos, {250, 480, 300, 60})) {
+                    currentScreen = LOGIN;
+                    currentUser = "";
+                    isCurrentUserAdmin = false;
+                    buildAtual.clear();
+                }
+            }
+        }
+        
+        else if (currentScreen == ESCOLHER_PECAS) {
+            if (mouseClick) {
+                if (CheckCollisionPointRec(mousePos, {650, 20, 100, 35})) {
+                    currentScreen = MENU;
+                    pecasScrollOffset = 0;
+                }
+                
+                vector<string> categorias = {"Todos", "CPU", "GPU", "RAM", "Motherboard", "Storage", "PSU", "Case", "Cooler"};
+                int btnX = 130;
+                for (auto &cat : categorias) {
+                    int btnWidth = MeasureText(cat.c_str(), 14) + 20;
+                    if (CheckCollisionPointRec(mousePos, {(float)btnX, 65, (float)btnWidth, 30})) {
+                        filtroCategoria = cat;
+                        pecasScrollOffset = 0;
+                    }
+                    btnX += btnWidth + 5;
+                }
+                
+                vector<Component> filtered;
+                for (auto &c : catalog)
+                    if (filtroCategoria == "Todos" || c.tipo == filtroCategoria)
+                        filtered.push_back(c);
+                
+                int y = 130;
+                for (size_t i = pecasScrollOffset; i < filtered.size() && i < (size_t)(pecasScrollOffset + 9); i++) {
+                    if (CheckCollisionPointRec(mousePos, {710, (float)y, 40, 35})) {
+                        buildAtual.push_back(filtered[i]);
+                        feedbackMessage = "Componente adicionado!";
+                        feedbackTimer = 60;
+                    }
+                    y += 45;
+                }
+            }
+            
+            if (mouseWheel != 0) {
+                vector<Component> filtered;
+                for (auto &c : catalog)
+                    if (filtroCategoria == "Todos" || c.tipo == filtroCategoria)
+                        filtered.push_back(c);
+                
+                pecasScrollOffset -= (int)mouseWheel;
+                if (pecasScrollOffset < 0) pecasScrollOffset = 0;
+                if (pecasScrollOffset > (int)filtered.size() - 9) 
+                    pecasScrollOffset = max(0, (int)filtered.size() - 9);
+            }
+        }
+        
+        else if (currentScreen == VER_PRECOS) {
+            if (mouseClick) {
+                if (CheckCollisionPointRec(mousePos, {650, 20, 100, 35})) currentScreen = MENU;
+                
+                if (!buildAtual.empty()) {
+                    int y = 90;
+                    for (size_t i = 0; i < buildAtual.size(); i++) {
+                        if (CheckCollisionPointRec(mousePos, {710, (float)y, 40, 35})) {
+                            buildAtual.erase(buildAtual.begin() + i);
+                            feedbackMessage = "Componente removido!";
+                            feedbackTimer = 60;
+                            break;
+                        }
+                        y += 45;
+                    }
+                    
+                    if (CheckCollisionPointRec(mousePos, {50, (float)(90 + (int)buildAtual.size() * 45 + 70), 150, 40})) {
+                        buildAtual.clear();
+                        feedbackMessage = "Build limpa!";
+                        feedbackTimer = 60;
+                    }
+                }
+            }
+        }
+        
+        else if (currentScreen == COMO_MONTAR) {
+            if (mouseClick && CheckCollisionPointRec(mousePos, {300, 540, 200, 40})) {
+                currentScreen = MENU;
+            }
+        }
+        
+        else if (currentScreen == ADMIN_PANEL) {
+            if (mouseClick) {
+                if (CheckCollisionPointRec(mousePos, {50, 110, 150, 45})) {
+                    currentScreen = ADMIN_ADD;
+                    adminId = adminTipo = adminNome = adminSpecs = adminPreco = adminMessage = "";
+                    adminFocusField = 0;
+                }
+                else if (CheckCollisionPointRec(mousePos, {220, 110, 150, 45})) {
+                    if (adminSelectedIndex >= 0) {
+                        currentScreen = ADMIN_EDIT;
+                        auto &c = catalog[adminSelectedIndex];
+                        adminId = c.id;
+                        adminTipo = c.tipo;
+                        adminNome = c.nome;
+                        adminSpecs = c.specs;
+                        adminPreco = TextFormat("%.2f", c.preco);
+                        adminMessage = "";
+                        adminFocusField = 0;
+                    }
+                }
+                else if (CheckCollisionPointRec(mousePos, {390, 110, 150, 45})) {
+                    if (adminSelectedIndex >= 0) {
+currentScreen = ADMIN_DELETE;
+                        adminMessage = "";
+                    }
+                }
+                else if (CheckCollisionPointRec(mousePos, {560, 110, 150, 45})) {
+                    currentScreen = MENU;
+                    adminSelectedIndex = -1;
+                    adminScrollOffset = 0;
+                }
+                
+                // Seleção de componente na lista
+                int y = 190;
+                for (size_t i = adminScrollOffset; i < catalog.size() && i < (size_t)(adminScrollOffset + 8); i++) {
+                    if (CheckCollisionPointRec(mousePos, {50, (float)(y - 5), 700, 35})) {
+                        adminSelectedIndex = (int)i;
+                    }
+                    y += 37;
+                }
+            }
+            
+            if (mouseWheel != 0) {
+                adminScrollOffset -= (int)mouseWheel;
+                if (adminScrollOffset < 0) adminScrollOffset = 0;
+                if (adminScrollOffset > (int)catalog.size() - 8) 
+                    adminScrollOffset = max(0, (int)catalog.size() - 8);
+            }
+        }
+        
+        else if (currentScreen == ADMIN_ADD) {
+            if (adminFocusField == 0) handleTextInput(adminId, 20);
+            else if (adminFocusField == 1) handleTextInput(adminTipo, 30);
+            else if (adminFocusField == 2) handleTextInput(adminNome, 50);
+            else if (adminFocusField == 3) handleTextInput(adminSpecs, 100);
+            else if (adminFocusField == 4) handleTextInput(adminPreco, 20);
+            
+            if (IsKeyPressed(KEY_TAB)) adminFocusField = (adminFocusField + 1) % 5;
+            
+            if (mouseClick) {
+                int yPos[] = {135, 210, 285, 360, 435};
+                for (int i = 0; i < 5; i++) {
+                    if (CheckCollisionPointRec(mousePos, {150, (float)yPos[i], 500, 35})) {
+                        adminFocusField = i;
+                    }
+                }
+                
+                if (CheckCollisionPointRec(mousePos, {250, 520, 130, 45})) {
+                    if (adminId.empty() || adminTipo.empty() || adminNome.empty() || adminPreco.empty()) {
+                        adminMessage = "Preencha todos os campos!";
+                    } else {
+                        bool idExists = false;
+                        for (auto &c : catalog) {
+                            if (c.id == adminId) {
+                                idExists = true;
+                                break;
+                            }
+                        }
+                        if (idExists) {
+                            adminMessage = "ID ja existe!";
+                        } else {
+                            try {
+                                Component newComp;
+                                newComp.id = adminId;
+                                newComp.tipo = adminTipo;
+                                newComp.nome = adminNome;
+                                newComp.specs = adminSpecs;
+                                newComp.preco = stod(adminPreco);
+                                
+                                catalog.push_back(newComp);
+                                saveComponents();
+                                adminMessage = "Componente adicionado com sucesso!";
+                                feedbackTimer = 120;
+                            } catch(...) {
+                                adminMessage = "Preco invalido! Use formato: 1234.56";
+                            }
+                        }
+                    }
+                }
+                else if (CheckCollisionPointRec(mousePos, {420, 520, 130, 45})) {
+                    currentScreen = ADMIN_PANEL;
+                }
+            }
+        }
+        
+        else if (currentScreen == ADMIN_EDIT) {
+            if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
+                if (adminFocusField == 0) handleTextInput(adminId, 20);
+                else if (adminFocusField == 1) handleTextInput(adminTipo, 30);
+                else if (adminFocusField == 2) handleTextInput(adminNome, 50);
+                else if (adminFocusField == 3) handleTextInput(adminSpecs, 100);
+                else if (adminFocusField == 4) handleTextInput(adminPreco, 20);
+                
+                if (IsKeyPressed(KEY_TAB)) adminFocusField = (adminFocusField + 1) % 5;
+                
+                if (mouseClick) {
+                    int yPos[] = {135, 210, 285, 360, 435};
+                    for (int i = 0; i < 5; i++) {
+                        if (CheckCollisionPointRec(mousePos, {150, (float)yPos[i], 500, 35})) {
+                            adminFocusField = i;
+                        }
+                    }
+                    
+                    if (CheckCollisionPointRec(mousePos, {250, 520, 130, 45})) {
+                        if (adminId.empty() || adminTipo.empty() || adminNome.empty() || adminPreco.empty()) {
+                            adminMessage = "Preencha todos os campos!";
+                        } else {
+                            try {
+                                catalog[adminSelectedIndex].id = adminId;
+                                catalog[adminSelectedIndex].tipo = adminTipo;
+                                catalog[adminSelectedIndex].nome = adminNome;
+                                catalog[adminSelectedIndex].specs = adminSpecs;
+                                catalog[adminSelectedIndex].preco = stod(adminPreco);
+                                
+                                saveComponents();
+                                adminMessage = "Componente editado com sucesso!";
+                                feedbackTimer = 120;
+                            } catch(...) {
+                                adminMessage = "Preco invalido! Use formato: 1234.56";
+                            }
+                        }
+                    }
+                    else if (CheckCollisionPointRec(mousePos, {420, 520, 130, 45})) {
+                        currentScreen = ADMIN_PANEL;
+                    }
+                }
+            } else {
+                if (mouseClick && CheckCollisionPointRec(mousePos, {300, 400, 200, 50})) {
+                    currentScreen = ADMIN_PANEL;
+                }
+            }
+        }
+        
+        else if (currentScreen == ADMIN_DELETE) {
+            if (mouseClick) {
+                if (CheckCollisionPointRec(mousePos, {250, 450, 130, 45})) {
+                    if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
+                        catalog.erase(catalog.begin() + adminSelectedIndex);
+                        saveComponents();
+                        adminMessage = "Componente excluido com sucesso!";
+                        feedbackTimer = 120;
+                        currentScreen = ADMIN_PANEL;
+                        adminSelectedIndex = -1;
+                    }
+                }
+                else if (CheckCollisionPointRec(mousePos, {420, 450, 130, 45})) {
+                    currentScreen = ADMIN_PANEL;
+                }
+                else if (CheckCollisionPointRec(mousePos, {300, 400, 200, 50})) {
+                    currentScreen = ADMIN_PANEL;
+                }
+            }
+        }
+        
+        // Drawing
         BeginDrawing();
         ClearBackground(RAYWHITE);
         
@@ -408,7 +768,12 @@ int main() {
             case ADMIN_DELETE: drawAdminDeleteScreen(); break;
         }
         
-        // TODO: Adicionar handlers de input para cada tela
+        // Feedback message
+        if (!feedbackMessage.empty() && feedbackTimer > 0) {
+            DrawRectangle(200, 10, 400, 40, Fade(RED, 0.8f));
+            int textWidth = MeasureText(feedbackMessage.c_str(), 18);
+            DrawText(feedbackMessage.c_str(), 400 - textWidth / 2, 20, 18, WHITE);
+        }
         
         EndDrawing();
     }
