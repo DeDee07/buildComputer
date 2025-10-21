@@ -363,7 +363,7 @@ void drawComoMontarScreen() {
     drawButton({300, 540, 200, 40}, "VOLTAR", GRAY);
 }
 
-void handleTextInput(string &field, int maxLen = 50) {
+void handleTextInput(string &field, size_t maxLen = 50) {
     int key = GetCharPressed();
     while (key > 0) {
         if (key >= 32 && key <= 125 && field.length() < maxLen)
@@ -387,9 +387,10 @@ int main() {
             if (feedbackTimer == 0) feedbackMessage = "";
         }
         
-        Vector2 mousePos = GetMousePosition();
-        bool mouseClick = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
-        float mouseWheel = GetMouseWheelMove();
+        // Variables for input handling (to be used in event handlers)
+        // Vector2 mousePos = GetMousePosition();
+        // bool mouseClick = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+        // float mouseWheel = GetMouseWheelMove();
         
         BeginDrawing();
         ClearBackground(RAYWHITE);
