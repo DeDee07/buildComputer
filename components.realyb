@@ -1,0 +1,97 @@
+# Arquivo de componentes - BuildComputer
+# Formato: ID;Tipo;Nome;Especificações;Preço
+
+# CPUs - Intel
+cpu001;CPU;Intel Core i9-14900K;24-core 3.2GHz Turbo 6.0GHz;3899.90
+cpu002;CPU;Intel Core i7-14700K;20-core 3.4GHz Turbo 5.6GHz;2899.90
+cpu003;CPU;Intel Core i5-14600K;14-core 3.5GHz Turbo 5.3GHz;1999.90
+cpu004;CPU;Intel Core i9-13900K;24-core 3.0GHz Turbo 5.8GHz;3499.90
+cpu005;CPU;Intel Core i5-12400F;6-core 2.5GHz Turbo 4.4GHz;899.90
+
+# CPUs - AMD
+cpu006;CPU;AMD Ryzen 9 7950X;16-core 4.5GHz Turbo 5.7GHz;3799.90
+cpu007;CPU;AMD Ryzen 9 7900X;12-core 4.7GHz Turbo 5.4GHz;2999.90
+cpu008;CPU;AMD Ryzen 7 7800X3D;8-core 4.2GHz 3D V-Cache;2799.90
+cpu009;CPU;AMD Ryzen 7 5800X;8-core 3.8GHz Turbo 4.7GHz;1699.90
+cpu010;CPU;AMD Ryzen 5 5600X;6-core 3.7GHz Turbo 4.6GHz;1299.90
+
+# GPUs - NVIDIA
+gpu001;GPU;NVIDIA RTX 4090;24GB GDDR6X 16384 CUDA;11999.90
+gpu002;GPU;NVIDIA RTX 4080;16GB GDDR6X 9728 CUDA;8999.90
+gpu003;GPU;NVIDIA RTX 4070 Ti;12GB GDDR6X 7680 CUDA;5999.90
+gpu004;GPU;NVIDIA RTX 4060 Ti;8GB GDDR6 4352 CUDA;3499.90
+gpu005;GPU;NVIDIA RTX 3060;12GB GDDR6 3584 CUDA;2499.90
+
+# GPUs - AMD
+gpu006;GPU;AMD Radeon RX 7900 XTX;24GB GDDR6 6144 SP;7999.90
+gpu007;GPU;AMD Radeon RX 7900 XT;20GB GDDR6 5376 SP;6499.90
+gpu008;GPU;AMD Radeon RX 7800 XT;16GB GDDR6 3840 SP;4499.90
+gpu009;GPU;AMD Radeon RX 6700 XT;12GB GDDR6 2560 SP;3299.90
+gpu010;GPU;AMD Radeon RX 6600;8GB GDDR6 1792 SP;2199.90
+
+# RAM - DDR5
+ram001;RAM;Corsair Vengeance RGB 32GB;DDR5 6000MHz CL36 2x16GB;899.90
+ram002;RAM;G.Skill Trident Z5 32GB;DDR5 6400MHz CL32 2x16GB;999.90
+ram003;RAM;Kingston Fury Beast 32GB;DDR5 5600MHz CL40 2x16GB;799.90
+ram004;RAM;TeamGroup T-Force RGB 32GB;DDR5 6000MHz CL38 2x16GB;849.90
+
+# RAM - DDR4
+ram005;RAM;Corsair Vengeance LPX 16GB;DDR4 3200MHz CL16 2x8GB;399.90
+ram006;RAM;G.Skill Ripjaws V 16GB;DDR4 3600MHz CL16 2x8GB;449.90
+ram007;RAM;Kingston Fury Beast 16GB;DDR4 3200MHz CL16 2x8GB;379.90
+ram008;RAM;Corsair Vengeance RGB 32GB;DDR4 3600MHz CL18 2x16GB;699.90
+
+# Motherboards - Intel
+mb001;Motherboard;ASUS ROG Maximus Z790;LGA1700 ATX DDR5 WiFi 6E;3299.90
+mb002;Motherboard;MSI MPG Z790 Carbon;LGA1700 ATX DDR5 WiFi 6E;2799.90
+mb003;Motherboard;Gigabyte Z690 AORUS;LGA1700 ATX DDR4 PCIe 5.0;1899.90
+mb004;Motherboard;ASRock B660M Steel;LGA1700 mATX DDR4;899.90
+mb005;Motherboard;ASUS Prime Z790-P;LGA1700 ATX DDR5;1599.90
+
+# Motherboards - AMD
+mb006;Motherboard;ASUS ROG Crosshair X670E;AM5 ATX DDR5 PCIe 5.0;3499.90
+mb007;Motherboard;MSI MAG X670E Tomahawk;AM5 ATX DDR5 WiFi 6E;2599.90
+mb008;Motherboard;Gigabyte B650 AORUS;AM5 ATX DDR5 WiFi 6;1799.90
+mb009;Motherboard;ASRock B550 Phantom;AM4 ATX DDR4 PCIe 4.0;899.90
+mb010;Motherboard;ASUS TUF Gaming B550M;AM4 mATX DDR4;699.90
+
+# Storage - NVMe SSD
+ssd001;Storage;Samsung 990 PRO 2TB;NVMe Gen4 7450MB/s;1299.90
+ssd002;Storage;WD Black SN850X 2TB;NVMe Gen4 7300MB/s;1199.90
+ssd003;Storage;Crucial P5 Plus 1TB;NVMe Gen4 6600MB/s;599.90
+ssd004;Storage;Kingston KC3000 1TB;NVMe Gen4 7000MB/s;649.90
+ssd005;Storage;Samsung 980 PRO 1TB;NVMe Gen4 7000MB/s;699.90
+
+# Storage - SATA SSD
+ssd006;Storage;Samsung 870 EVO 1TB;SATA 560MB/s;499.90
+ssd007;Storage;Crucial MX500 1TB;SATA 560MB/s;449.90
+ssd008;Storage;WD Blue 1TB;SATA 560MB/s;429.90
+
+# Storage - HDD
+hdd001;Storage;Seagate Barracuda 4TB;HDD 7200RPM 256MB;599.90
+hdd002;Storage;WD Blue 2TB;HDD 7200RPM 256MB;399.90
+hdd003;Storage;Toshiba X300 6TB;HDD 7200RPM 256MB;899.90
+
+# PSU
+psu001;PSU;Corsair RM1000x;1000W 80+ Gold Modular;899.90
+psu002;PSU;EVGA SuperNOVA 850 G6;850W 80+ Gold Modular;749.90
+psu003;PSU;Seasonic Focus GX-750;750W 80+ Gold Modular;649.90
+psu004;PSU;Thermaltake GF1 650W;650W 80+ Gold Modular;549.90
+psu005;PSU;ASUS ROG Thor 1200W;1200W 80+ Platinum;1599.90
+psu006;PSU;MSI MPG A850G;850W 80+ Gold Modular;699.90
+
+# Cases
+case001;Case;NZXT H510 Elite;Mid Tower ATX RGB Glass;799.90
+case002;Case;Corsair 4000D Airflow;Mid Tower ATX Glass;599.90
+case003;Case;Lian Li O11 Dynamic;Mid Tower ATX Glass;999.90
+case004;Case;Fractal Meshify C;Mid Tower ATX Mesh;549.90
+case005;Case;Phanteks Eclipse P400A;Mid Tower ATX Mesh RGB;649.90
+case006;Case;Cooler Master TD500;Mid Tower ATX RGB Mesh;599.90
+
+# Coolers
+cool001;Cooler;Noctua NH-D15;Air Dual Tower 140mm;599.90
+cool002;Cooler;Corsair H150i Elite;AIO 360mm RGB;899.90
+cool003;Cooler;NZXT Kraken X63;AIO 280mm RGB;749.90
+cool004;Cooler;be quiet! Dark Rock 4;Air Dual Tower 135mm;549.90
+cool005;Cooler;Arctic Freezer II 240;AIO 240mm;499.90
+cool006;Cooler;Cooler Master Hyper 212;Air Single Tower 120mm;199.90

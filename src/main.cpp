@@ -10,41 +10,49 @@
 using namespace std;
 
 struct Component {
-    string id;
-    string tipo;
-    string nome;
-    string specs;
+    string id, tipo, nome, specs;
     double preco;
 };
 
-vector<Component> catalog;
-vector<Component> buildAtual;
-
 struct Account {
-    string username;
-    string password;
+    string username, password;
+    bool isAdmin;
 };
 
-vector<Account> accounts = {{"admin", "Programador"}};
+vector<Component> catalog, buildAtual;
+vector<Account> accounts = {{"admin", "Programador", true}};
+string currentUser = "";
+bool isCurrentUserAdmin = false;
 
-enum Screen { LOGIN, REGISTER, MENU, ESCOLHER_PECAS, VER_PRECOS, COMO_MONTAR };
+enum Screen { LOGIN, REGISTER, MENU, ESCOLHER_PECAS, VER_PRECOS, COMO_MONTAR, ADMIN_PANEL, ADMIN_ADD, ADMIN_EDIT, ADMIN_DELETE };
 Screen currentScreen = LOGIN;
 
-string loginUser = "";
-string loginPass = "";
+// Login/Register fields
+string loginUser = "", loginPass = "";
 bool loginFocusUser = true;
+string registerUser = "", registerPass = "", registerPassConfirm = "", registerMessage = "";
+int registerFocusField = 0;
 
-string registerUser = "";
-string registerPass = "";
-string registerPassConfirm = "";
-int registerFocusField = 0; // 0=user, 1=pass, 2=confirm
-string registerMessage = "";
+// Admin fields
+string adminId = "", adminTipo = "", adminNome = "", adminSpecs = "", adminPreco = "", adminMessage = "";
+int adminFocusField = 0, adminSelectedIndex = -1, adminScrollOffset = 0;
+
+// UI fields
+string filtroCategoria = "Todos", feedbackMessage = "";
+int pecasScrollOffset = 0, feedbackTimer = 0;
 
 static inline string trim(const string &s) {
     size_t a = s.find_first_not_of(" \t\r\n");
     if (a == string::npos) return "";
-    size_t b = s.find_last_not_of(" \t\r\n");
-    return s.substr(a, b - a + 1);
+    return s.substr(a, s.find_last_not_of(" \t\r\n") - a + 1);
+}
+
+void saveComponents() {
+    ofstream f("componentes.realyb");
+    if (!f.is_open()) return;
+    for (auto &c : catalog) 
+        f << c.id << ";" << c.tipo << ";" << c.nome << ";" << c.specs << ";" << c.preco << "\n";
+    f.close();
 }
 
 bool loadComponents(const string &path) {
@@ -59,12 +67,8 @@ bool loadComponents(const string &path) {
         vector<string> parts;
         string cur;
         for (char c : line) {
-            if (c == ';') { 
-                parts.push_back(cur); 
-                cur.clear(); 
-            } else {
-                cur.push_back(c);
-            }
+            if (c == ';') { parts.push_back(cur); cur.clear(); }
+            else cur.push_back(c);
         }
         parts.push_back(cur);
         
@@ -75,11 +79,8 @@ bool loadComponents(const string &path) {
         c.tipo = trim(parts[1]);
         c.nome = trim(parts[2]);
         c.specs = trim(parts[3]);
-        try { 
-            c.preco = stod(trim(parts[4])); 
-        } catch(...) { 
-            c.preco = 0.0; 
-        }
+        try { c.preco = stod(trim(parts[4])); } 
+        catch(...) { c.preco = 0.0; }
         
         catalog.push_back(c);
     }
@@ -90,423 +91,306 @@ string formatBR(double v) {
     stringstream ss;
     ss << fixed << setprecision(2) << v;
     string s = ss.str();
-    
     size_t dotPos = s.find('.');
-    if (dotPos != string::npos) {
-        s[dotPos] = ',';
-    }
-    
+    if (dotPos != string::npos) s[dotPos] = ',';
     return "R$ " + s;
 }
 
 double calcularTotal() {
     double total = 0.0;
-    for (auto &c : buildAtual) {
-        total += c.preco;
-    }
+    for (auto &c : buildAtual) total += c.preco;
     return total;
+}
+
+void drawTextBox(const char* label, string &text, Rectangle box, bool focused, bool maskPassword = false) {
+    DrawText(label, box.x, box.y - 30, 20, BLACK);
+    DrawRectangleRec(box, focused ? LIGHTGRAY : WHITE);
+    DrawRectangleLinesEx(box, 2, focused ? BLUE : GRAY);
+    string display = maskPassword ? string(text.length(), '*') : text;
+    DrawText(display.c_str(), box.x + 10, box.y + 10, 20, BLACK);
+}
+
+void drawButton(Rectangle btn, const char* text, Color color) {
+    DrawRectangleRec(btn, color);
+    int textWidth = MeasureText(text, 20);
+    DrawText(text, btn.x + (btn.width - textWidth) / 2, btn.y + 15, 20, WHITE);
 }
 
 void drawLoginScreen() {
     DrawText("=== BuildComputer ===", 250, 100, 30, DARKBLUE);
     DrawText("Login", 350, 180, 20, DARKGRAY);
     
-    // Campo usuário
-    DrawText("Usuario:", 200, 250, 20, BLACK);
-    Rectangle userBox = {200, 280, 400, 40};
-    DrawRectangleRec(userBox, loginFocusUser ? LIGHTGRAY : WHITE);
-    DrawRectangleLinesEx(userBox, 2, loginFocusUser ? BLUE : GRAY);
-    DrawText(loginUser.c_str(), 210, 290, 20, BLACK);
+    drawTextBox("Usuario:", loginUser, {200, 280, 400, 40}, loginFocusUser);
+    drawTextBox("Senha:", loginPass, {200, 380, 400, 40}, !loginFocusUser, true);
     
-    // Campo senha
-    DrawText("Senha:", 200, 350, 20, BLACK);
-    Rectangle passBox = {200, 380, 400, 40};
-    DrawRectangleRec(passBox, !loginFocusUser ? LIGHTGRAY : WHITE);
-    DrawRectangleLinesEx(passBox, 2, !loginFocusUser ? BLUE : GRAY);
-    
-    string maskedPass(loginPass.length(), '*');
-    DrawText(maskedPass.c_str(), 210, 390, 20, BLACK);
-    
-    // Botão login
-    Rectangle btnLogin = {250, 460, 140, 50};
-    DrawRectangleRec(btnLogin, DARKBLUE);
-    DrawText("ENTRAR", 280, 475, 20, WHITE);
-    
-    // Botão criar conta
-    Rectangle btnRegister = {410, 460, 140, 50};
-    DrawRectangleRec(btnRegister, GREEN);
-    DrawText("CRIAR CONTA", 420, 475, 16, WHITE);
+    drawButton({250, 460, 140, 50}, "ENTRAR", DARKBLUE);
+    drawButton({410, 460, 140, 50}, "CRIAR CONTA", GREEN);
 }
 
 void drawRegisterScreen() {
     DrawText("=== Criar Nova Conta ===", 230, 80, 30, DARKBLUE);
     
-    // Campo usuário
-    DrawText("Usuario:", 200, 180, 20, BLACK);
-    Rectangle userBox = {200, 210, 400, 40};
-    DrawRectangleRec(userBox, registerFocusField == 0 ? LIGHTGRAY : WHITE);
-    DrawRectangleLinesEx(userBox, 2, registerFocusField == 0 ? BLUE : GRAY);
-    DrawText(registerUser.c_str(), 210, 220, 20, BLACK);
+    drawTextBox("Usuario:", registerUser, {200, 210, 400, 40}, registerFocusField == 0);
+    drawTextBox("Senha:", registerPass, {200, 300, 400, 40}, registerFocusField == 1, true);
+    drawTextBox("Confirmar Senha:", registerPassConfirm, {200, 390, 400, 40}, registerFocusField == 2, true);
     
-    // Campo senha
-    DrawText("Senha:", 200, 270, 20, BLACK);
-    Rectangle passBox = {200, 300, 400, 40};
-    DrawRectangleRec(passBox, registerFocusField == 1 ? LIGHTGRAY : WHITE);
-    DrawRectangleLinesEx(passBox, 2, registerFocusField == 1 ? BLUE : GRAY);
-    string maskedPass(registerPass.length(), '*');
-    DrawText(maskedPass.c_str(), 210, 310, 20, BLACK);
-    
-    // Campo confirmar senha
-    DrawText("Confirmar Senha:", 200, 360, 20, BLACK);
-    Rectangle confirmBox = {200, 390, 400, 40};
-    DrawRectangleRec(confirmBox, registerFocusField == 2 ? LIGHTGRAY : WHITE);
-    DrawRectangleLinesEx(confirmBox, 2, registerFocusField == 2 ? BLUE : GRAY);
-    string maskedConfirm(registerPassConfirm.length(), '*');
-    DrawText(maskedConfirm.c_str(), 210, 400, 20, BLACK);
-    
-    // Mensagem de erro/sucesso
     if (!registerMessage.empty()) {
         Color msgColor = (registerMessage.find("sucesso") != string::npos) ? GREEN : RED;
         DrawText(registerMessage.c_str(), 200, 450, 18, msgColor);
     }
     
-    // Botões
-    Rectangle btnCreate = {250, 500, 140, 50};
-    DrawRectangleRec(btnCreate, GREEN);
-    DrawText("CRIAR", 290, 515, 20, WHITE);
-    
-    Rectangle btnBack = {410, 500, 140, 50};
-    DrawRectangleRec(btnBack, GRAY);
-    DrawText("VOLTAR", 440, 515, 20, WHITE);
+    drawButton({250, 500, 140, 50}, "CRIAR", GREEN);
+    drawButton({410, 500, 140, 50}, "VOLTAR", GRAY);
 }
 
 void drawMenuScreen() {
+    string welcome = "Bem-vindo, " + currentUser + (isCurrentUserAdmin ? " (Admin)" : "");
+    DrawText(welcome.c_str(), 50, 30, 20, DARKGRAY);
     DrawText("=== MENU PRINCIPAL ===", 250, 80, 30, DARKBLUE);
     
-    Rectangle btn1 = {250, 180, 300, 60};
-    Rectangle btn2 = {250, 260, 300, 60};
-    Rectangle btn3 = {250, 340, 300, 60};
-    Rectangle btn4 = {250, 420, 300, 60};
+    const char* labels[] = {"Como Montar", "Escolher Pecas", "Ver Precos", "Painel Admin", "Sair"};
+    Color colors[] = {BLUE, GREEN, ORANGE, isCurrentUserAdmin ? PURPLE : GRAY, RED};
     
-    DrawRectangleRec(btn1, BLUE);
-    DrawText("Como Montar", 310, 200, 20, WHITE);
+    for (int i = 0; i < 5; i++) {
+        Rectangle btn = {250, 160.0f + i * 80, 300, 60};
+        DrawRectangleRec(btn, colors[i]);
+        int textWidth = MeasureText(labels[i], 20);
+        DrawText(labels[i], 250 + (300 - textWidth) / 2, 180 + i * 80, 20, 
+                 (i == 3 && !isCurrentUserAdmin) ? LIGHTGRAY : WHITE);
+    }
+}
+
+void drawAdminPanelScreen() {
+    DrawText("=== PAINEL ADMINISTRATIVO ===", 180, 20, 28, PURPLE);
+    DrawText(TextFormat("Total: %d componentes", (int)catalog.size()), 50, 70, 18, DARKGRAY);
     
-    DrawRectangleRec(btn2, GREEN);
-    DrawText("Escolher Pecas", 295, 280, 20, WHITE);
+    const char* labels[] = {"ADICIONAR", "EDITAR", "EXCLUIR", "VOLTAR"};
+    Color colors[] = {GREEN, BLUE, RED, GRAY};
     
-    DrawRectangleRec(btn3, ORANGE);
-    DrawText("Ver Precos", 315, 360, 20, WHITE);
+    for (int i = 0; i < 4; i++) {
+        Rectangle btn = {50.0f + i * 170, 110, 150, 45};
+        drawButton(btn, labels[i], colors[i]);
+    }
     
-    DrawRectangleRec(btn4, RED);
-    DrawText("Sair", 360, 440, 20, WHITE);
+    DrawLine(50, 170, 750, 170, DARKGRAY);
+    
+    int y = 190, maxVisible = 8;
+    for (size_t i = adminScrollOffset; i < catalog.size() && i < (size_t)(adminScrollOffset + maxVisible); i++) {
+        auto &c = catalog[i];
+        Color bgColor = ((int)i == adminSelectedIndex) ? LIGHTGRAY : WHITE;
+        DrawRectangle(50, y - 5, 700, 35, bgColor);
+        string line = TextFormat("[%d] %s | %s | %s", (int)i, c.tipo.c_str(), 
+                                 c.nome.substr(0, 25).c_str(), formatBR(c.preco).c_str());
+        DrawText(line.c_str(), 55, y, 14, BLACK);
+        y += 37;
+    }
+    
+    if (catalog.size() > (size_t)maxVisible)
+        DrawText("Use SCROLL para navegar | Clique para selecionar", 220, 550, 14, DARKGRAY);
+}
+
+void drawAdminEditFields(const char* title) {
+    DrawText(title, 200, 30, 28, currentScreen == ADMIN_ADD ? GREEN : BLUE);
+    
+    const char* labels[] = {"ID:", "Tipo (CPU/GPU/RAM/Motherboard/Storage/PSU/Case/Cooler):", 
+                           "Nome:", "Especificacoes:", "Preco (use ponto para decimal):"};
+    string* fields[] = {&adminId, &adminTipo, &adminNome, &adminSpecs, &adminPreco};
+    int yPos[] = {135, 210, 285, 360, 435};
+    
+    for (int i = 0; i < 5; i++) {
+        DrawText(labels[i], 150, yPos[i] - 25, i == 1 ? 16 : 18, BLACK);
+        Rectangle box = {150, (float)yPos[i], 500, 35};
+        DrawRectangleRec(box, adminFocusField == i ? LIGHTGRAY : WHITE);
+        DrawRectangleLinesEx(box, 2, adminFocusField == i ? BLUE : GRAY);
+        DrawText(fields[i]->c_str(), 160, yPos[i] + 8, 18, BLACK);
+    }
+    
+    if (!adminMessage.empty()) {
+        Color msgColor = (adminMessage.find("sucesso") != string::npos) ? GREEN : RED;
+        DrawText(adminMessage.c_str(), 150, 490, 16, msgColor);
+    }
+    
+    drawButton({250, 520, 130, 45}, "SALVAR", currentScreen == ADMIN_ADD ? GREEN : BLUE);
+    drawButton({420, 520, 130, 45}, "CANCELAR", GRAY);
+}
+
+void drawAdminAddScreen() { drawAdminEditFields("=== ADICIONAR COMPONENTE ==="); }
+void drawAdminEditScreen() {
+    if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
+        drawAdminEditFields("=== EDITAR COMPONENTE ===");
+    } else {
+        DrawText("=== EDITAR COMPONENTE ===", 220, 30, 28, BLUE);
+        DrawText("Nenhum componente selecionado!", 250, 300, 20, RED);
+        drawButton({300, 400, 200, 50}, "VOLTAR", GRAY);
+    }
+}
+
+void drawAdminDeleteScreen() {
+    DrawText("=== EXCLUIR COMPONENTE ===", 210, 30, 28, RED);
+    
+    if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
+        auto &c = catalog[adminSelectedIndex];
+        DrawText("Confirmar exclusao do seguinte componente:", 150, 120, 18, BLACK);
+        
+        const char* labels[] = {"ID:", "Tipo:", "Nome:", "Specs:", "Preco:"};
+        string values[] = {c.id, c.tipo, c.nome, c.specs, formatBR(c.preco)};
+        
+        for (int i = 0; i < 5; i++)
+            DrawText(TextFormat("%s %s", labels[i], values[i].c_str()), 150, 170 + i * 30, 16, DARKGRAY);
+        
+        DrawText("Esta acao nao pode ser desfeita!", 220, 350, 18, RED);
+        
+        if (!adminMessage.empty()) {
+            Color msgColor = (adminMessage.find("sucesso") != string::npos) ? GREEN : RED;
+            DrawText(adminMessage.c_str(), 150, 400, 16, msgColor);
+        }
+        
+        drawButton({250, 450, 130, 45}, "EXCLUIR", RED);
+        drawButton({420, 450, 130, 45}, "CANCELAR", GRAY);
+    } else {
+        DrawText("Nenhum componente selecionado!", 250, 300, 20, RED);
+        drawButton({300, 400, 200, 50}, "VOLTAR", GRAY);
+    }
 }
 
 void drawEscolherPecasScreen() {
-    DrawText("=== ESCOLHER PECAS ===", 230, 30, 30, DARKBLUE);
+    DrawText("=== ESCOLHER PECAS ===", 250, 20, 28, GREEN);
     
-    string buildInfo = "Build: " + to_string(buildAtual.size()) + " itens | Total: " + formatBR(calcularTotal());
-    DrawText(buildInfo.c_str(), 50, 80, 18, DARKGRAY);
-    
-    int y = 130;
-    for (size_t i = 0; i < catalog.size() && i < 8; i++) {
-        auto &c = catalog[i];
-        string line = c.id + " | " + c.tipo + " | " + c.nome + " | " + formatBR(c.preco);
-        DrawText(line.c_str(), 50, y, 16, BLACK);
-        
-        Rectangle btnAdd = {650, (float)y - 5, 100, 30};
-        DrawRectangleRec(btnAdd, GREEN);
-        DrawText("Adicionar", 660, y, 16, WHITE);
-        
-        y += 40;
+    DrawText("Filtro:", 50, 70, 18, BLACK);
+    vector<string> categorias = {"Todos", "CPU", "GPU", "RAM", "Motherboard", "Storage", "PSU", "Case", "Cooler"};
+    int btnX = 130;
+    for (auto &cat : categorias) {
+        int btnWidth = MeasureText(cat.c_str(), 14) + 20;
+        Rectangle btn = {(float)btnX, 65, (float)btnWidth, 30};
+        Color btnColor = (filtroCategoria == cat) ? BLUE : LIGHTGRAY;
+        DrawRectangleRec(btn, btnColor);
+        DrawRectangleLinesEx(btn, 1, DARKGRAY);
+        DrawText(cat.c_str(), btnX + 10, 72, 14, (filtroCategoria == cat) ? WHITE : BLACK);
+        btnX += btnWidth + 5;
     }
     
-    Rectangle btnBack = {300, 520, 200, 50};
-    DrawRectangleRec(btnBack, GRAY);
-    DrawText("VOLTAR", 355, 535, 20, WHITE);
+    DrawLine(50, 110, 750, 110, DARKGRAY);
+    
+    vector<Component> filtered;
+    for (auto &c : catalog)
+        if (filtroCategoria == "Todos" || c.tipo == filtroCategoria)
+            filtered.push_back(c);
+    
+    int y = 130, maxVisible = 9;
+    for (size_t i = pecasScrollOffset; i < filtered.size() && i < (size_t)(pecasScrollOffset + maxVisible); i++) {
+        auto &c = filtered[i];
+        Rectangle itemRect = {50, (float)y - 5, 650, 40};
+        DrawRectangleRec(itemRect, WHITE);
+        DrawRectangleLinesEx(itemRect, 1, LIGHTGRAY);
+        
+        DrawText(c.nome.c_str(), 60, y, 16, BLACK);
+        DrawText(c.specs.c_str(), 60, y + 18, 12, DARKGRAY);
+        DrawText(formatBR(c.preco).c_str(), 550, y + 8, 16, DARKGREEN);
+        
+        DrawRectangleRec({710, (float)y, 40, 35}, GREEN);
+        DrawText("+", 723, y + 8, 20, WHITE);
+        y += 45;
+    }
+    
+    if (filtered.size() > (size_t)maxVisible)
+        DrawText("Use SCROLL para navegar", 300, 555, 14, DARKGRAY);
+    
+    DrawText(TextFormat("Build Atual (%d pecas)", (int)buildAtual.size()), 50, 555, 16, DARKBLUE);
+    DrawText(TextFormat("Total: %s", formatBR(calcularTotal()).c_str()), 600, 555, 18, DARKGREEN);
+    drawButton({650, 20, 100, 35}, "VOLTAR", GRAY);
 }
 
 void drawVerPrecosScreen() {
-    DrawText("=== VER PRECOS ===", 270, 30, 30, DARKBLUE);
+    DrawText("=== VER PRECOS DA BUILD ===", 200, 20, 28, ORANGE);
     
     if (buildAtual.empty()) {
-        DrawText("Nenhum componente no build.", 250, 200, 20, RED);
+        DrawText("Sua build esta vazia!", 280, 300, 20, DARKGRAY);
+        DrawText("Va em 'Escolher Pecas' para adicionar componentes.", 180, 340, 16, GRAY);
     } else {
-        int y = 100;
-        for (auto &b : buildAtual) {
-            string line = b.tipo + " | " + b.nome + " | " + formatBR(b.preco);
-            DrawText(line.c_str(), 50, y, 18, BLACK);
-            y += 35;
+        DrawLine(50, 70, 750, 70, DARKGRAY);
+        
+        int y = 90;
+        for (auto &c : buildAtual) {
+            DrawText(c.nome.c_str(), 60, y, 16, BLACK);
+            DrawText(c.specs.c_str(), 60, y + 18, 12, DARKGRAY);
+            DrawText(formatBR(c.preco).c_str(), 550, y + 8, 16, DARKGREEN);
+            
+            DrawRectangleRec({710, (float)y, 40, 35}, RED);
+            DrawText("X", 723, y + 8, 20, WHITE);
+            y += 45;
         }
         
-        DrawText("-----------------------------------", 50, y, 18, DARKGRAY);
-        y += 30;
-        string total = "TOTAL: " + formatBR(calcularTotal());
-        DrawText(total.c_str(), 50, y, 24, DARKGREEN);
+        DrawLine(50, y + 10, 750, y + 10, DARKGRAY);
+        DrawText("TOTAL:", 500, y + 30, 22, BLACK);
+        DrawText(formatBR(calcularTotal()).c_str(), 600, y + 30, 22, DARKGREEN);
+        
+        drawButton({50, (float)y + 70, 150, 40}, "LIMPAR BUILD", RED);
     }
     
-    Rectangle btnBack = {300, 520, 200, 50};
-    DrawRectangleRec(btnBack, GRAY);
-    DrawText("VOLTAR", 355, 535, 20, WHITE);
+    drawButton({650, 20, 100, 35}, "VOLTAR", GRAY);
 }
 
 void drawComoMontarScreen() {
-    DrawText("=== COMO MONTAR ===", 260, 30, 30, DARKBLUE);
+    DrawText("=== COMO MONTAR UM PC ===", 220, 20, 28, BLUE);
     
-    DrawText("Guia de Montagem:", 50, 100, 22, BLACK);
-    DrawText("1. Escolha um processador (CPU)", 50, 150, 18, DARKGRAY);
-    DrawText("2. Escolha uma placa mae (Motherboard)", 50, 180, 18, DARKGRAY);
-    DrawText("3. Adicione memoria RAM (ate 4 modulos)", 50, 210, 18, DARKGRAY);
-    DrawText("4. Escolha uma placa de video (GPU)", 50, 240, 18, DARKGRAY);
-    DrawText("5. Adicione armazenamento (Storage/SSD)", 50, 270, 18, DARKGRAY);
-    DrawText("6. Escolha uma fonte (PSU)", 50, 300, 18, DARKGRAY);
+    const char* steps[] = {
+        "Prepare a area de trabalho", "Instale a CPU na Motherboard", "Instale a RAM",
+        "Monte a Motherboard no Case", "Instale a PSU", "Conecte os cabos",
+        "Instale Storage e GPU", "Teste antes de fechar"
+    };
     
-    DrawText("Dica: Use 'Escolher Pecas' para montar seu PC!", 50, 360, 16, BLUE);
+    const char* details[][3] = {
+        {"Mesa limpa e espaco adequado", "Boa iluminacao", ""},
+        {"Alinhe os pinos/contatos corretamente", "Trave o socket da CPU", ""},
+        {"Verifique os slots corretos (manual da placa-mae)", "Pressione ate ouvir o clique", ""},
+        {"Instale o I/O shield primeiro", "Use os standoffs corretos", ""},
+        {"Ventilador voltado para fora/baixo", "", ""},
+        {"CPU Power (4/8 pinos)", "Motherboard Power (24 pinos)", "GPU Power (se necessario)"},
+        {"", "", ""}, {"", "", ""}
+    };
     
-    Rectangle btnBack = {300, 520, 200, 50};
-    DrawRectangleRec(btnBack, GRAY);
-    DrawText("VOLTAR", 355, 535, 20, WHITE);
+    int y = 80;
+    for (int i = 0; i < 8; i++) {
+        DrawText(TextFormat("%d. %s", i + 1, steps[i]), 60, y, 16, BLACK);
+        y += 30;
+        for (int j = 0; j < 3 && details[i][j][0] != '\0'; j++) {
+            DrawText(TextFormat("   - %s", details[i][j]), 70, y, 14, DARKGRAY);
+            y += 20;
+        }
+        y += 10;
+    }
+    
+    drawButton({300, 540, 200, 40}, "VOLTAR", GRAY);
+}
+
+void handleTextInput(string &field, int maxLen = 50) {
+    int key = GetCharPressed();
+    while (key > 0) {
+        if (key >= 32 && key <= 125 && field.length() < maxLen)
+            field += (char)key;
+        key = GetCharPressed();
+    }
+    if (IsKeyPressed(KEY_BACKSPACE) && !field.empty())
+        field.pop_back();
 }
 
 int main() {
-    const int screenWidth = 800;
-    const int screenHeight = 600;
-    
-    InitWindow(screenWidth, screenHeight, "BuildComputer - Raylib");
+    InitWindow(800, 600, "BuildComputer System");
     SetTargetFPS(60);
     
-    // Carregar componentes
-    if (!loadComponents("components.realyb")) {
-        TraceLog(LOG_WARNING, "Arquivo components.realyb nao encontrado. Usando dados de exemplo.");
-        catalog.push_back({"cpu1", "CPU", "Intel i5-12400", "6-core 2.5GHz", 1299.90});
-        catalog.push_back({"cpu2", "CPU", "AMD Ryzen 5 5600X", "6-core 3.7GHz", 1399.90});
-        catalog.push_back({"ram1", "RAM", "Corsair 16GB DDR4", "3200MHz", 399.90});
-        catalog.push_back({"gpu1", "GPU", "RTX 3060 Ti", "8GB GDDR6", 2499.90});
-        catalog.push_back({"mb1", "Motherboard", "ASUS B550", "AM4 ATX", 899.90});
-    }
+    if (!loadComponents("componentes.realyb"))
+        cout << "Aviso: Arquivo componentes.realyb nao encontrado!" << endl;
     
     while (!WindowShouldClose()) {
-        // ===== INPUT HANDLING =====
+        if (feedbackTimer > 0) {
+            feedbackTimer--;
+            if (feedbackTimer == 0) feedbackMessage = "";
+        }
+        
         Vector2 mousePos = GetMousePosition();
+        bool mouseClick = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+        float mouseWheel = GetMouseWheelMove();
         
-        // LOGIN SCREEN
-        if (currentScreen == LOGIN) {
-            // Detectar clique nas caixas e botões
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                Rectangle userBox = {200, 280, 400, 40};
-                Rectangle passBox = {200, 380, 400, 40};
-                Rectangle btnLogin = {250, 460, 140, 50};
-                Rectangle btnRegister = {410, 460, 140, 50};
-                
-                if (CheckCollisionPointRec(mousePos, userBox)) {
-                    loginFocusUser = true;
-                }
-                else if (CheckCollisionPointRec(mousePos, passBox)) {
-                    loginFocusUser = false;
-                }
-                else if (CheckCollisionPointRec(mousePos, btnLogin)) {
-                    // Verificar login
-                    bool loginSuccess = false;
-                    for (auto &acc : accounts) {
-                        if (acc.username == loginUser && acc.password == loginPass) {
-                            loginSuccess = true;
-                            break;
-                        }
-                    }
-                    if (loginSuccess) {
-                        currentScreen = MENU;
-                        loginUser = "";
-                        loginPass = "";
-                    }
-                }
-                else if (CheckCollisionPointRec(mousePos, btnRegister)) {
-                    currentScreen = REGISTER;
-                    registerMessage = "";
-                }
-            }
-            
-            // Digitar texto
-            int key = GetCharPressed();
-            while (key > 0) {
-                if (key >= 32 && key <= 125) {
-                    if (loginFocusUser) {
-                        loginUser += (char)key;
-                    } else {
-                        loginPass += (char)key;
-                    }
-                }
-                key = GetCharPressed();
-            }
-            
-            // Apagar texto
-            if (IsKeyPressed(KEY_BACKSPACE)) {
-                if (loginFocusUser && !loginUser.empty()) {
-                    loginUser.pop_back();
-                } else if (!loginFocusUser && !loginPass.empty()) {
-                    loginPass.pop_back();
-                }
-            }
-            
-            // TAB para alternar entre campos
-            if (IsKeyPressed(KEY_TAB)) {
-                loginFocusUser = !loginFocusUser;
-            }
-            
-            // ENTER para fazer login
-            if (IsKeyPressed(KEY_ENTER)) {
-                bool loginSuccess = false;
-                for (auto &acc : accounts) {
-                    if (acc.username == loginUser && acc.password == loginPass) {
-                        loginSuccess = true;
-                        break;
-                    }
-                }
-                if (loginSuccess) {
-                    currentScreen = MENU;
-                    loginUser = "";
-                    loginPass = "";
-                }
-            }
-        }
-        
-        // REGISTER SCREEN
-        else if (currentScreen == REGISTER) {
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                Rectangle userBox = {200, 210, 400, 40};
-                Rectangle passBox = {200, 300, 400, 40};
-                Rectangle confirmBox = {200, 390, 400, 40};
-                Rectangle btnCreate = {250, 500, 140, 50};
-                Rectangle btnBack = {410, 500, 140, 50};
-                
-                if (CheckCollisionPointRec(mousePos, userBox)) {
-                    registerFocusField = 0;
-                }
-                else if (CheckCollisionPointRec(mousePos, passBox)) {
-                    registerFocusField = 1;
-                }
-                else if (CheckCollisionPointRec(mousePos, confirmBox)) {
-                    registerFocusField = 2;
-                }
-                else if (CheckCollisionPointRec(mousePos, btnCreate)) {
-                    // Validar e criar conta
-                    if (registerUser.empty()) {
-                        registerMessage = "Usuario nao pode estar vazio!";
-                    }
-                    else if (registerPass.empty()) {
-                        registerMessage = "Senha nao pode estar vazia!";
-                    }
-                    else if (registerPass != registerPassConfirm) {
-                        registerMessage = "As senhas nao coincidem!";
-                    }
-                    else {
-                        // Verificar se usuário já existe
-                        bool userExists = false;
-                        for (auto &acc : accounts) {
-                            if (acc.username == registerUser) {
-                                userExists = true;
-                                break;
-                            }
-                        }
-                        
-                        if (userExists) {
-                            registerMessage = "Usuario ja existe!";
-                        } else {
-                            accounts.push_back({registerUser, registerPass});
-                            registerMessage = "Conta criada com sucesso!";
-                            registerUser = "";
-                            registerPass = "";
-                            registerPassConfirm = "";
-                        }
-                    }
-                }
-                else if (CheckCollisionPointRec(mousePos, btnBack)) {
-                    currentScreen = LOGIN;
-                    registerUser = "";
-                    registerPass = "";
-                    registerPassConfirm = "";
-                    registerMessage = "";
-                }
-            }
-            
-            // Digitar texto
-            int key = GetCharPressed();
-            while (key > 0) {
-                if (key >= 32 && key <= 125) {
-                    if (registerFocusField == 0) {
-                        registerUser += (char)key;
-                    } else if (registerFocusField == 1) {
-                        registerPass += (char)key;
-                    } else if (registerFocusField == 2) {
-                        registerPassConfirm += (char)key;
-                    }
-                }
-                key = GetCharPressed();
-            }
-            
-            // Apagar texto
-            if (IsKeyPressed(KEY_BACKSPACE)) {
-                if (registerFocusField == 0 && !registerUser.empty()) {
-                    registerUser.pop_back();
-                } else if (registerFocusField == 1 && !registerPass.empty()) {
-                    registerPass.pop_back();
-                } else if (registerFocusField == 2 && !registerPassConfirm.empty()) {
-                    registerPassConfirm.pop_back();
-                }
-            }
-            
-            // TAB para alternar campos
-            if (IsKeyPressed(KEY_TAB)) {
-                registerFocusField = (registerFocusField + 1) % 3;
-            }
-        }
-        
-        // MENU SCREEN
-        else if (currentScreen == MENU) {
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                if (CheckCollisionPointRec(mousePos, {250, 180, 300, 60})) {
-                    currentScreen = COMO_MONTAR;
-                }
-                else if (CheckCollisionPointRec(mousePos, {250, 260, 300, 60})) {
-                    currentScreen = ESCOLHER_PECAS;
-                }
-                else if (CheckCollisionPointRec(mousePos, {250, 340, 300, 60})) {
-                    currentScreen = VER_PRECOS;
-                }
-                else if (CheckCollisionPointRec(mousePos, {250, 420, 300, 60})) {
-                    break; // Sair do programa
-                }
-            }
-        }
-        
-        // ESCOLHER PECAS SCREEN
-        else if (currentScreen == ESCOLHER_PECAS) {
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                // Botão voltar
-                if (CheckCollisionPointRec(mousePos, {300, 520, 200, 50})) {
-                    currentScreen = MENU;
-                }
-                
-                // Botões de adicionar componentes
-                int y = 130;
-                for (size_t i = 0; i < catalog.size() && i < 8; i++) {
-                    Rectangle btnAdd = {650, (float)y - 5, 100, 30};
-                    if (CheckCollisionPointRec(mousePos, btnAdd)) {
-                        buildAtual.push_back(catalog[i]);
-                    }
-                    y += 40;
-                }
-            }
-        }
-        
-        // VER PRECOS e COMO MONTAR SCREENS
-        else if (currentScreen == VER_PRECOS || currentScreen == COMO_MONTAR) {
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                if (CheckCollisionPointRec(mousePos, {300, 520, 200, 50})) {
-                    currentScreen = MENU;
-                }
-            }
-        }
-        
-        // ===== DRAWING =====
         BeginDrawing();
         ClearBackground(RAYWHITE);
         
@@ -517,7 +401,13 @@ int main() {
             case ESCOLHER_PECAS: drawEscolherPecasScreen(); break;
             case VER_PRECOS: drawVerPrecosScreen(); break;
             case COMO_MONTAR: drawComoMontarScreen(); break;
+            case ADMIN_PANEL: drawAdminPanelScreen(); break;
+            case ADMIN_ADD: drawAdminAddScreen(); break;
+            case ADMIN_EDIT: drawAdminEditScreen(); break;
+            case ADMIN_DELETE: drawAdminDeleteScreen(); break;
         }
+        
+        // TODO: Adicionar handlers de input para cada tela
         
         EndDrawing();
     }
