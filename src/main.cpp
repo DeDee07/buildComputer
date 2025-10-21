@@ -20,7 +20,7 @@ struct Account {
 };
 
 vector<Component> catalog, buildAtual;
-vector<Account> accounts = {{"admin", "Programador", true}};
+vector<Account> accounts = {{"admin", "Programador", true}, {"andre", "Test", false}};
 string currentUser = "";
 bool isCurrentUserAdmin = false;
 
@@ -84,6 +84,7 @@ bool loadComponents(const string &path) {
         
         catalog.push_back(c);
     }
+    f.close();
     return true;
 }
 
@@ -103,17 +104,17 @@ double calcularTotal() {
 }
 
 void drawTextBox(const char* label, string &text, Rectangle box, bool focused, bool maskPassword = false) {
-    DrawText(label, box.x, box.y - 30, 20, BLACK);
+    DrawText(label, (int)box.x, (int)box.y - 30, 20, BLACK);
     DrawRectangleRec(box, focused ? LIGHTGRAY : WHITE);
     DrawRectangleLinesEx(box, 2, focused ? BLUE : GRAY);
     string display = maskPassword ? string(text.length(), '*') : text;
-    DrawText(display.c_str(), box.x + 10, box.y + 10, 20, BLACK);
+    DrawText(display.c_str(), (int)box.x + 10, (int)box.y + 10, 20, BLACK);
 }
 
 void drawButton(Rectangle btn, const char* text, Color color) {
     DrawRectangleRec(btn, color);
     int textWidth = MeasureText(text, 20);
-    DrawText(text, btn.x + (btn.width - textWidth) / 2, btn.y + 15, 20, WHITE);
+    DrawText(text, (int)btn.x + (int)(btn.width - textWidth) / 2, (int)btn.y + 15, 20, WHITE);
 }
 
 void drawLoginScreen() {
@@ -215,6 +216,7 @@ void drawAdminEditFields(const char* title) {
 }
 
 void drawAdminAddScreen() { drawAdminEditFields("=== ADICIONAR COMPONENTE ==="); }
+
 void drawAdminEditScreen() {
     if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
         drawAdminEditFields("=== EDITAR COMPONENTE ===");
@@ -310,7 +312,8 @@ void drawVerPrecosScreen() {
         DrawLine(50, 70, 750, 70, DARKGRAY);
         
         int y = 90;
-        for (auto &c : buildAtual) {
+        for (size_t i = 0; i < buildAtual.size(); i++) {
+            auto &c = buildAtual[i];
             DrawText(c.nome.c_str(), 60, y, 16, BLACK);
             DrawText(c.specs.c_str(), 60, y + 18, 12, DARKGRAY);
             DrawText(formatBR(c.preco).c_str(), 550, y + 8, 16, DARKGREEN);
@@ -391,7 +394,7 @@ int main() {
         bool mouseClick = IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
         float mouseWheel = GetMouseWheelMove();
         
-        // Input Handlers
+        // LOGIN SCREEN
         if (currentScreen == LOGIN) {
             if (loginFocusUser) handleTextInput(loginUser, 30);
             else handleTextInput(loginPass, 30);
@@ -439,9 +442,11 @@ int main() {
                     feedbackMessage = "Usuario ou senha incorretos!";
                     feedbackTimer = 180;
                 }
+                loginUser = loginPass = "";
             }
         }
         
+        // REGISTER SCREEN
         else if (currentScreen == REGISTER) {
             if (registerFocusField == 0) handleTextInput(registerUser, 30);
             else if (registerFocusField == 1) handleTextInput(registerPass, 30);
@@ -480,6 +485,7 @@ int main() {
             }
         }
         
+        // MENU SCREEN
         else if (currentScreen == MENU) {
             if (mouseClick) {
                 if (CheckCollisionPointRec(mousePos, {250, 160, 300, 60})) currentScreen = COMO_MONTAR;
@@ -499,6 +505,7 @@ int main() {
             }
         }
         
+        // ESCOLHER PECAS SCREEN
         else if (currentScreen == ESCOLHER_PECAS) {
             if (mouseClick) {
                 if (CheckCollisionPointRec(mousePos, {650, 20, 100, 35})) {
@@ -546,6 +553,7 @@ int main() {
             }
         }
         
+        // VER PRECOS SCREEN
         else if (currentScreen == VER_PRECOS) {
             if (mouseClick) {
                 if (CheckCollisionPointRec(mousePos, {650, 20, 100, 35})) currentScreen = MENU;
@@ -562,7 +570,8 @@ int main() {
                         y += 45;
                     }
                     
-                    if (CheckCollisionPointRec(mousePos, {50, (float)(90 + (int)buildAtual.size() * 45 + 70), 150, 40})) {
+                    int totalY = 90 + (int)buildAtual.size() * 45 + 70;
+                    if (!buildAtual.empty() && CheckCollisionPointRec(mousePos, {50, (float)totalY, 150, 40})) {
                         buildAtual.clear();
                         feedbackMessage = "Build limpa!";
                         feedbackTimer = 60;
@@ -571,12 +580,14 @@ int main() {
             }
         }
         
+        // COMO MONTAR SCREEN
         else if (currentScreen == COMO_MONTAR) {
             if (mouseClick && CheckCollisionPointRec(mousePos, {300, 540, 200, 40})) {
                 currentScreen = MENU;
             }
         }
         
+        // ADMIN PANEL SCREEN
         else if (currentScreen == ADMIN_PANEL) {
             if (mouseClick) {
                 if (CheckCollisionPointRec(mousePos, {50, 110, 150, 45})) {
@@ -584,7 +595,7 @@ int main() {
                     adminId = adminTipo = adminNome = adminSpecs = adminPreco = adminMessage = "";
                     adminFocusField = 0;
                 }
-                else if (CheckCollisionPointRec(mousePos, {220, 110, 150, 45})) {
+                else if (CheckCollisionPointRec(mousePos, {220, 110, 150,45})) {
                     if (adminSelectedIndex >= 0) {
                         currentScreen = ADMIN_EDIT;
                         auto &c = catalog[adminSelectedIndex];
@@ -592,15 +603,21 @@ int main() {
                         adminTipo = c.tipo;
                         adminNome = c.nome;
                         adminSpecs = c.specs;
-                        adminPreco = TextFormat("%.2f", c.preco);
+                        adminPreco = to_string(c.preco);
                         adminMessage = "";
                         adminFocusField = 0;
+                    } else {
+                        adminMessage = "Selecione um componente primeiro!";
+                        feedbackTimer = 120;
                     }
                 }
                 else if (CheckCollisionPointRec(mousePos, {390, 110, 150, 45})) {
                     if (adminSelectedIndex >= 0) {
-currentScreen = ADMIN_DELETE;
+                        currentScreen = ADMIN_DELETE;
                         adminMessage = "";
+                    } else {
+                        adminMessage = "Selecione um componente primeiro!";
+                        feedbackTimer = 120;
                     }
                 }
                 else if (CheckCollisionPointRec(mousePos, {560, 110, 150, 45})) {
@@ -609,11 +626,12 @@ currentScreen = ADMIN_DELETE;
                     adminScrollOffset = 0;
                 }
                 
-                // Seleção de componente na lista
+                // Click to select component
                 int y = 190;
                 for (size_t i = adminScrollOffset; i < catalog.size() && i < (size_t)(adminScrollOffset + 8); i++) {
-                    if (CheckCollisionPointRec(mousePos, {50, (float)(y - 5), 700, 35})) {
+                    if (CheckCollisionPointRec(mousePos, {50, (float)y - 5, 700, 35})) {
                         adminSelectedIndex = (int)i;
+                        break;
                     }
                     y += 37;
                 }
@@ -622,16 +640,17 @@ currentScreen = ADMIN_DELETE;
             if (mouseWheel != 0) {
                 adminScrollOffset -= (int)mouseWheel;
                 if (adminScrollOffset < 0) adminScrollOffset = 0;
-                if (adminScrollOffset > (int)catalog.size() - 8) 
+                if (adminScrollOffset > (int)catalog.size() - 8)
                     adminScrollOffset = max(0, (int)catalog.size() - 8);
             }
         }
         
+        // ADMIN ADD SCREEN
         else if (currentScreen == ADMIN_ADD) {
             if (adminFocusField == 0) handleTextInput(adminId, 20);
             else if (adminFocusField == 1) handleTextInput(adminTipo, 30);
-            else if (adminFocusField == 2) handleTextInput(adminNome, 50);
-            else if (adminFocusField == 3) handleTextInput(adminSpecs, 100);
+            else if (adminFocusField == 2) handleTextInput(adminNome, 100);
+            else if (adminFocusField == 3) handleTextInput(adminSpecs, 150);
             else if (adminFocusField == 4) handleTextInput(adminPreco, 20);
             
             if (IsKeyPressed(KEY_TAB)) adminFocusField = (adminFocusField + 1) % 5;
@@ -641,53 +660,55 @@ currentScreen = ADMIN_DELETE;
                 for (int i = 0; i < 5; i++) {
                     if (CheckCollisionPointRec(mousePos, {150, (float)yPos[i], 500, 35})) {
                         adminFocusField = i;
+                        break;
                     }
                 }
                 
                 if (CheckCollisionPointRec(mousePos, {250, 520, 130, 45})) {
                     if (adminId.empty() || adminTipo.empty() || adminNome.empty() || adminPreco.empty()) {
-                        adminMessage = "Preencha todos os campos!";
+                        adminMessage = "Preencha todos os campos obrigatorios!";
                     } else {
-                        bool idExists = false;
+                        bool exists = false;
                         for (auto &c : catalog) {
                             if (c.id == adminId) {
-                                idExists = true;
+                                exists = true;
                                 break;
                             }
                         }
-                        if (idExists) {
+                        if (exists) {
                             adminMessage = "ID ja existe!";
                         } else {
+                            Component newComp;
+                            newComp.id = adminId;
+                            newComp.tipo = adminTipo;
+                            newComp.nome = adminNome;
+                            newComp.specs = adminSpecs;
                             try {
-                                Component newComp;
-                                newComp.id = adminId;
-                                newComp.tipo = adminTipo;
-                                newComp.nome = adminNome;
-                                newComp.specs = adminSpecs;
                                 newComp.preco = stod(adminPreco);
-                                
                                 catalog.push_back(newComp);
                                 saveComponents();
                                 adminMessage = "Componente adicionado com sucesso!";
                                 feedbackTimer = 120;
                             } catch(...) {
-                                adminMessage = "Preco invalido! Use formato: 1234.56";
+                                adminMessage = "Preco invalido!";
                             }
                         }
                     }
                 }
                 else if (CheckCollisionPointRec(mousePos, {420, 520, 130, 45})) {
                     currentScreen = ADMIN_PANEL;
+                    adminMessage = "";
                 }
             }
         }
         
+        // ADMIN EDIT SCREEN
         else if (currentScreen == ADMIN_EDIT) {
             if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
                 if (adminFocusField == 0) handleTextInput(adminId, 20);
                 else if (adminFocusField == 1) handleTextInput(adminTipo, 30);
-                else if (adminFocusField == 2) handleTextInput(adminNome, 50);
-                else if (adminFocusField == 3) handleTextInput(adminSpecs, 100);
+                else if (adminFocusField == 2) handleTextInput(adminNome, 100);
+                else if (adminFocusField == 3) handleTextInput(adminSpecs, 150);
                 else if (adminFocusField == 4) handleTextInput(adminPreco, 20);
                 
                 if (IsKeyPressed(KEY_TAB)) adminFocusField = (adminFocusField + 1) % 5;
@@ -697,30 +718,31 @@ currentScreen = ADMIN_DELETE;
                     for (int i = 0; i < 5; i++) {
                         if (CheckCollisionPointRec(mousePos, {150, (float)yPos[i], 500, 35})) {
                             adminFocusField = i;
+                            break;
                         }
                     }
                     
                     if (CheckCollisionPointRec(mousePos, {250, 520, 130, 45})) {
                         if (adminId.empty() || adminTipo.empty() || adminNome.empty() || adminPreco.empty()) {
-                            adminMessage = "Preencha todos os campos!";
+                            adminMessage = "Preencha todos os campos obrigatorios!";
                         } else {
+                            catalog[adminSelectedIndex].id = adminId;
+                            catalog[adminSelectedIndex].tipo = adminTipo;
+                            catalog[adminSelectedIndex].nome = adminNome;
+                            catalog[adminSelectedIndex].specs = adminSpecs;
                             try {
-                                catalog[adminSelectedIndex].id = adminId;
-                                catalog[adminSelectedIndex].tipo = adminTipo;
-                                catalog[adminSelectedIndex].nome = adminNome;
-                                catalog[adminSelectedIndex].specs = adminSpecs;
                                 catalog[adminSelectedIndex].preco = stod(adminPreco);
-                                
                                 saveComponents();
                                 adminMessage = "Componente editado com sucesso!";
                                 feedbackTimer = 120;
                             } catch(...) {
-                                adminMessage = "Preco invalido! Use formato: 1234.56";
+                                adminMessage = "Preco invalido!";
                             }
                         }
                     }
                     else if (CheckCollisionPointRec(mousePos, {420, 520, 130, 45})) {
                         currentScreen = ADMIN_PANEL;
+                        adminMessage = "";
                     }
                 }
             } else {
@@ -730,6 +752,7 @@ currentScreen = ADMIN_DELETE;
             }
         }
         
+        // ADMIN DELETE SCREEN
         else if (currentScreen == ADMIN_DELETE) {
             if (mouseClick) {
                 if (CheckCollisionPointRec(mousePos, {250, 450, 130, 45})) {
@@ -737,21 +760,22 @@ currentScreen = ADMIN_DELETE;
                         catalog.erase(catalog.begin() + adminSelectedIndex);
                         saveComponents();
                         adminMessage = "Componente excluido com sucesso!";
+                        adminSelectedIndex = -1;
                         feedbackTimer = 120;
                         currentScreen = ADMIN_PANEL;
-                        adminSelectedIndex = -1;
                     }
                 }
                 else if (CheckCollisionPointRec(mousePos, {420, 450, 130, 45})) {
                     currentScreen = ADMIN_PANEL;
+                    adminMessage = "";
                 }
-                else if (CheckCollisionPointRec(mousePos, {300, 400, 200, 50})) {
+                else if (adminSelectedIndex < 0 && CheckCollisionPointRec(mousePos, {300, 400, 200, 50})) {
                     currentScreen = ADMIN_PANEL;
                 }
             }
         }
         
-        // Drawing
+        // DRAW
         BeginDrawing();
         ClearBackground(RAYWHITE);
         
@@ -768,11 +792,10 @@ currentScreen = ADMIN_DELETE;
             case ADMIN_DELETE: drawAdminDeleteScreen(); break;
         }
         
-        // Feedback message
         if (!feedbackMessage.empty() && feedbackTimer > 0) {
             DrawRectangle(200, 10, 400, 40, Fade(RED, 0.8f));
-            int textWidth = MeasureText(feedbackMessage.c_str(), 18);
-            DrawText(feedbackMessage.c_str(), 400 - textWidth / 2, 20, 18, WHITE);
+            int textWidth = MeasureText(feedbackMessage.c_str(), 16);
+            DrawText(feedbackMessage.c_str(), 400 - textWidth / 2, 20, 16, WHITE);
         }
         
         EndDrawing();
