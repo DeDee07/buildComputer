@@ -136,7 +136,6 @@ void drawLoginScreen() {
     Rectangle btnRegister = {410, 460, 140, 50};
     DrawRectangleRec(btnRegister, GREEN);
     DrawText("CRIAR CONTA", 420, 475, 16, WHITE);
-    
 }
 
 void drawRegisterScreen() {
@@ -278,7 +277,6 @@ int main() {
     // Carregar componentes
     if (!loadComponents("components.realyb")) {
         TraceLog(LOG_WARNING, "Arquivo components.realyb nao encontrado. Usando dados de exemplo.");
-        // Adicionar alguns componentes de exemplo
         catalog.push_back({"cpu1", "CPU", "Intel i5-12400", "6-core 2.5GHz", 1299.90});
         catalog.push_back({"cpu2", "CPU", "AMD Ryzen 5 5600X", "6-core 3.7GHz", 1399.90});
         catalog.push_back({"ram1", "RAM", "Corsair 16GB DDR4", "3200MHz", 399.90});
@@ -287,28 +285,42 @@ int main() {
     }
     
     while (!WindowShouldClose()) {
-        // Input
+        // ===== INPUT HANDLING =====
+        Vector2 mousePos = GetMousePosition();
+        
+        // LOGIN SCREEN
         if (currentScreen == LOGIN) {
-            // Detectar clique nas caixas de texto
+            // Detectar clique nas caixas e botões
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                Vector2 mousePos = GetMousePosition();
                 Rectangle userBox = {200, 280, 400, 40};
                 Rectangle passBox = {200, 380, 400, 40};
-                Rectangle btnLogin = {300, 460, 200, 50};
+                Rectangle btnLogin = {250, 460, 140, 50};
+                Rectangle btnRegister = {410, 460, 140, 50};
                 
-                // Clicar na caixa de usuário
                 if (CheckCollisionPointRec(mousePos, userBox)) {
                     loginFocusUser = true;
                 }
-                // Clicar na caixa de senha
                 else if (CheckCollisionPointRec(mousePos, passBox)) {
                     loginFocusUser = false;
                 }
-                // Clicar no botão de login
                 else if (CheckCollisionPointRec(mousePos, btnLogin)) {
-                    if (loginUser == "admin" && loginPass == "Programador") {
-                        currentScreen = MENU;
+                    // Verificar login
+                    bool loginSuccess = false;
+                    for (auto &acc : accounts) {
+                        if (acc.username == loginUser && acc.password == loginPass) {
+                            loginSuccess = true;
+                            break;
+                        }
                     }
+                    if (loginSuccess) {
+                        currentScreen = MENU;
+                        loginUser = "";
+                        loginPass = "";
+                    }
+                }
+                else if (CheckCollisionPointRec(mousePos, btnRegister)) {
+                    currentScreen = REGISTER;
+                    registerMessage = "";
                 }
             }
             
@@ -341,35 +353,166 @@ int main() {
             
             // ENTER para fazer login
             if (IsKeyPressed(KEY_ENTER)) {
-                if (loginUser == "admin" && loginPass == "Programador") {
+                bool loginSuccess = false;
+                for (auto &acc : accounts) {
+                    if (acc.username == loginUser && acc.password == loginPass) {
+                        loginSuccess = true;
+                        break;
+                    }
+                }
+                if (loginSuccess) {
                     currentScreen = MENU;
+                    loginUser = "";
+                    loginPass = "";
                 }
             }
         }
         
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-            Vector2 mousePos = GetMousePosition();
-            
-            if (currentScreen == MENU) {
-                if (CheckCollisionPointRec(mousePos, {250, 180, 300, 60})) currentScreen = COMO_MONTAR;
-                if (CheckCollisionPointRec(mousePos, {250, 260, 300, 60})) currentScreen = ESCOLHER_PECAS;
-                if (CheckCollisionPointRec(mousePos, {250, 340, 300, 60})) currentScreen = VER_PRECOS;
-                if (CheckCollisionPointRec(mousePos, {250, 420, 300, 60})) break;
+        // REGISTER SCREEN
+        else if (currentScreen == REGISTER) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                Rectangle userBox = {200, 210, 400, 40};
+                Rectangle passBox = {200, 300, 400, 40};
+                Rectangle confirmBox = {200, 390, 400, 40};
+                Rectangle btnCreate = {250, 500, 140, 50};
+                Rectangle btnBack = {410, 500, 140, 50};
+                
+                if (CheckCollisionPointRec(mousePos, userBox)) {
+                    registerFocusField = 0;
+                }
+                else if (CheckCollisionPointRec(mousePos, passBox)) {
+                    registerFocusField = 1;
+                }
+                else if (CheckCollisionPointRec(mousePos, confirmBox)) {
+                    registerFocusField = 2;
+                }
+                else if (CheckCollisionPointRec(mousePos, btnCreate)) {
+                    // Validar e criar conta
+                    if (registerUser.empty()) {
+                        registerMessage = "Usuario nao pode estar vazio!";
+                    }
+                    else if (registerPass.empty()) {
+                        registerMessage = "Senha nao pode estar vazia!";
+                    }
+                    else if (registerPass != registerPassConfirm) {
+                        registerMessage = "As senhas nao coincidem!";
+                    }
+                    else {
+                        // Verificar se usuário já existe
+                        bool userExists = false;
+                        for (auto &acc : accounts) {
+                            if (acc.username == registerUser) {
+                                userExists = true;
+                                break;
+                            }
+                        }
+                        
+                        if (userExists) {
+                            registerMessage = "Usuario ja existe!";
+                        } else {
+                            accounts.push_back({registerUser, registerPass});
+                            registerMessage = "Conta criada com sucesso!";
+                            registerUser = "";
+                            registerPass = "";
+                            registerPassConfirm = "";
+                        }
+                    }
+                }
+                else if (CheckCollisionPointRec(mousePos, btnBack)) {
+                    currentScreen = LOGIN;
+                    registerUser = "";
+                    registerPass = "";
+                    registerPassConfirm = "";
+                    registerMessage = "";
+                }
             }
             
-            if (currentScreen != LOGIN && currentScreen != MENU) {
+            // Digitar texto
+            int key = GetCharPressed();
+            while (key > 0) {
+                if (key >= 32 && key <= 125) {
+                    if (registerFocusField == 0) {
+                        registerUser += (char)key;
+                    } else if (registerFocusField == 1) {
+                        registerPass += (char)key;
+                    } else if (registerFocusField == 2) {
+                        registerPassConfirm += (char)key;
+                    }
+                }
+                key = GetCharPressed();
+            }
+            
+            // Apagar texto
+            if (IsKeyPressed(KEY_BACKSPACE)) {
+                if (registerFocusField == 0 && !registerUser.empty()) {
+                    registerUser.pop_back();
+                } else if (registerFocusField == 1 && !registerPass.empty()) {
+                    registerPass.pop_back();
+                } else if (registerFocusField == 2 && !registerPassConfirm.empty()) {
+                    registerPassConfirm.pop_back();
+                }
+            }
+            
+            // TAB para alternar campos
+            if (IsKeyPressed(KEY_TAB)) {
+                registerFocusField = (registerFocusField + 1) % 3;
+            }
+        }
+        
+        // MENU SCREEN
+        else if (currentScreen == MENU) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                if (CheckCollisionPointRec(mousePos, {250, 180, 300, 60})) {
+                    currentScreen = COMO_MONTAR;
+                }
+                else if (CheckCollisionPointRec(mousePos, {250, 260, 300, 60})) {
+                    currentScreen = ESCOLHER_PECAS;
+                }
+                else if (CheckCollisionPointRec(mousePos, {250, 340, 300, 60})) {
+                    currentScreen = VER_PRECOS;
+                }
+                else if (CheckCollisionPointRec(mousePos, {250, 420, 300, 60})) {
+                    break; // Sair do programa
+                }
+            }
+        }
+        
+        // ESCOLHER PECAS SCREEN
+        else if (currentScreen == ESCOLHER_PECAS) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                // Botão voltar
+                if (CheckCollisionPointRec(mousePos, {300, 520, 200, 50})) {
+                    currentScreen = MENU;
+                }
+                
+                // Botões de adicionar componentes
+                int y = 130;
+                for (size_t i = 0; i < catalog.size() && i < 8; i++) {
+                    Rectangle btnAdd = {650, (float)y - 5, 100, 30};
+                    if (CheckCollisionPointRec(mousePos, btnAdd)) {
+                        buildAtual.push_back(catalog[i]);
+                    }
+                    y += 40;
+                }
+            }
+        }
+        
+        // VER PRECOS e COMO MONTAR SCREENS
+        else if (currentScreen == VER_PRECOS || currentScreen == COMO_MONTAR) {
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 if (CheckCollisionPointRec(mousePos, {300, 520, 200, 50})) {
                     currentScreen = MENU;
                 }
             }
         }
         
-        // Draw
+        // ===== DRAWING =====
         BeginDrawing();
         ClearBackground(RAYWHITE);
         
         switch (currentScreen) {
             case LOGIN: drawLoginScreen(); break;
+            case REGISTER: drawRegisterScreen(); break;
             case MENU: drawMenuScreen(); break;
             case ESCOLHER_PECAS: drawEscolherPecasScreen(); break;
             case VER_PRECOS: drawVerPrecosScreen(); break;
