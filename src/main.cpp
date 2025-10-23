@@ -15,12 +15,12 @@ struct Component {
 };
 
 struct Account {
-    string username, password;
+    string username, password, email, phone;
     bool isAdmin;
 };
 
 vector<Component> catalog, buildAtual;
-vector<Account> accounts = {{"admin", "Programador", true}, {"andre", "Test", false}};
+vector<Account> accounts;
 string currentUser = "";
 bool isCurrentUserAdmin = false;
 
@@ -30,8 +30,8 @@ Screen currentScreen = LOGIN;
 // Login/Register fields
 string loginUser = "", loginPass = "";
 bool loginFocusUser = true;
-string registerUser = "", registerPass = "", registerPassConfirm = "", registerMessage = "";
-int registerFocusField = 0;
+string registerUser = "", registerPass = "", registerPassConfirm = "", registerEmail = "", registerPhone = "", registerMessage = "";
+int registerFocusField = 0; // 0=user, 1=email, 2=phone, 3=pass, 4=confirm
 
 // Admin fields
 string adminId = "", adminTipo = "", adminNome = "", adminSpecs = "", adminPreco = "", adminMessage = "";
@@ -46,6 +46,90 @@ static inline string trim(const string &s) {
     if (a == string::npos) return "";
     return s.substr(a, s.find_last_not_of(" \t\r\n") - a + 1);
 }
+
+// === DATABASE FUNCTIONS ===
+
+void saveAccounts() {
+    ofstream f("accounts.db");
+    if (!f.is_open()) {
+        cout << "Erro ao salvar contas!" << endl;
+        return;
+    }
+    
+    for (auto &acc : accounts) {
+        f << acc.username << ";"
+          << acc.password << ";"
+          << acc.email << ";"
+          << acc.phone << ";"
+          << (acc.isAdmin ? "1" : "0") << "\n";
+    }
+    f.close();
+    cout << "Contas salvas com sucesso!" << endl;
+}
+
+void loadAccounts() {
+    ifstream f("accounts.db");
+    
+    // Se o arquivo não existe, criar contas admin padrão
+    if (!f.is_open()) {
+        accounts.push_back({"admin", "Programador", "admin@buildpc.com", "912345678", true});
+        accounts.push_back({"admin2", "adminProgramador", "admin2@buildpc.com", "913456789", true});
+        saveAccounts();
+        cout << "Base de dados criada com contas admin padrao" << endl;
+        return;
+    }
+    
+    accounts.clear();
+    string line;
+    
+    while (getline(f, line)) {
+        line = trim(line);
+        if (line.empty() || line[0] == '#') continue;
+        
+        vector<string> parts;
+        string cur;
+        for (char c : line) {
+            if (c == ';') {
+                parts.push_back(cur);
+                cur.clear();
+            } else {
+                cur.push_back(c);
+            }
+        }
+        parts.push_back(cur);
+        
+        if (parts.size() >= 5) {
+            Account acc;
+            acc.username = trim(parts[0]);
+            acc.password = trim(parts[1]);
+            acc.email = trim(parts[2]);
+            acc.phone = trim(parts[3]);
+            acc.isAdmin = (trim(parts[4]) == "1");
+            accounts.push_back(acc);
+        }
+    }
+    f.close();
+    cout << "Carregadas " << accounts.size() << " contas da base de dados" << endl;
+}
+
+bool validateEmail(const string &email) {
+    if (email.empty()) return false;
+    size_t atPos = email.find('@');
+    if (atPos == string::npos || atPos == 0 || atPos == email.length() - 1) return false;
+    size_t dotPos = email.find('.', atPos);
+    if (dotPos == string::npos || dotPos == email.length() - 1) return false;
+    return true;
+}
+
+bool validatePhone(const string &phone) {
+    if (phone.length() < 9) return false;
+    for (char c : phone) {
+        if (!isdigit(c) && c != '+' && c != ' ' && c != '-') return false;
+    }
+    return true;
+}
+
+// === COMPONENT FUNCTIONS ===
 
 void saveComponents() {
     ofstream f("componentes.realyb");
@@ -103,12 +187,14 @@ double calcularTotal() {
     return total;
 }
 
+// === DRAWING FUNCTIONS ===
+
 void drawTextBox(const char* label, string &text, Rectangle box, bool focused, bool maskPassword = false) {
-    DrawText(label, (int)box.x, (int)box.y - 30, 20, BLACK);
+    DrawText(label, (int)box.x, (int)box.y - 25, 18, BLACK);
     DrawRectangleRec(box, focused ? LIGHTGRAY : WHITE);
     DrawRectangleLinesEx(box, 2, focused ? BLUE : GRAY);
     string display = maskPassword ? string(text.length(), '*') : text;
-    DrawText(display.c_str(), (int)box.x + 10, (int)box.y + 10, 20, BLACK);
+    DrawText(display.c_str(), (int)box.x + 10, (int)box.y + 10, 18, BLACK);
 }
 
 void drawButton(Rectangle btn, const char* text, Color color) {
@@ -129,19 +215,21 @@ void drawLoginScreen() {
 }
 
 void drawRegisterScreen() {
-    DrawText("=== Criar Nova Conta ===", 230, 80, 30, DARKBLUE);
+    DrawText("=== Criar Nova Conta ===", 230, 40, 28, DARKBLUE);
     
-    drawTextBox("Usuario:", registerUser, {200, 210, 400, 40}, registerFocusField == 0);
-    drawTextBox("Senha:", registerPass, {200, 300, 400, 40}, registerFocusField == 1, true);
-    drawTextBox("Confirmar Senha:", registerPassConfirm, {200, 390, 400, 40}, registerFocusField == 2, true);
+    drawTextBox("Usuario:", registerUser, {200, 130, 400, 38}, registerFocusField == 0);
+    drawTextBox("Email:", registerEmail, {200, 200, 400, 38}, registerFocusField == 1);
+    drawTextBox("Telemovel:", registerPhone, {200, 270, 400, 38}, registerFocusField == 2);
+    drawTextBox("Senha:", registerPass, {200, 340, 400, 38}, registerFocusField == 3, true);
+    drawTextBox("Confirmar Senha:", registerPassConfirm, {200, 410, 400, 38}, registerFocusField == 4, true);
     
     if (!registerMessage.empty()) {
         Color msgColor = (registerMessage.find("sucesso") != string::npos) ? GREEN : RED;
-        DrawText(registerMessage.c_str(), 200, 450, 18, msgColor);
+        DrawText(registerMessage.c_str(), 200, 470, 16, msgColor);
     }
     
-    drawButton({250, 500, 140, 50}, "CRIAR", GREEN);
-    drawButton({410, 500, 140, 50}, "VOLTAR", GRAY);
+    drawButton({250, 510, 140, 45}, "CRIAR", GREEN);
+    drawButton({410, 510, 140, 45}, "VOLTAR", GRAY);
 }
 
 void drawMenuScreen() {
@@ -149,15 +237,26 @@ void drawMenuScreen() {
     DrawText(welcome.c_str(), 50, 30, 20, DARKGRAY);
     DrawText("=== MENU PRINCIPAL ===", 250, 80, 30, DARKBLUE);
     
-    const char* labels[] = {"Como Montar", "Escolher Pecas", "Ver Precos", "Painel Admin", "Sair"};
-    Color colors[] = {BLUE, GREEN, ORANGE, isCurrentUserAdmin ? PURPLE : GRAY, RED};
-    
-    for (int i = 0; i < 5; i++) {
-        Rectangle btn = {250, 160.0f + i * 80, 300, 60};
-        DrawRectangleRec(btn, colors[i]);
-        int textWidth = MeasureText(labels[i], 20);
-        DrawText(labels[i], 250 + (300 - textWidth) / 2, 180 + i * 80, 20, 
-                 (i == 3 && !isCurrentUserAdmin) ? LIGHTGRAY : WHITE);
+    if (isCurrentUserAdmin) {
+        const char* labels[] = {"Como Montar", "Escolher Pecas", "Ver Precos", "Painel Admin", "Sair"};
+        Color colors[] = {BLUE, GREEN, ORANGE, PURPLE, RED};
+        
+        for (int i = 0; i < 5; i++) {
+            Rectangle btn = {250, 160.0f + i * 80, 300, 60};
+            DrawRectangleRec(btn, colors[i]);
+            int textWidth = MeasureText(labels[i], 20);
+            DrawText(labels[i], 250 + (300 - textWidth) / 2, 180 + i * 80, 20, WHITE);
+        }
+    } else {
+        const char* labels[] = {"Como Montar", "Escolher Pecas", "Ver Precos", "Sair"};
+        Color colors[] = {BLUE, GREEN, ORANGE, RED};
+        
+        for (int i = 0; i < 4; i++) {
+            Rectangle btn = {250, 180.0f + i * 90, 300, 60};
+            DrawRectangleRec(btn, colors[i]);
+            int textWidth = MeasureText(labels[i], 20);
+            DrawText(labels[i], 250 + (300 - textWidth) / 2, 200 + i * 90, 20, WHITE);
+        }
     }
 }
 
@@ -381,6 +480,10 @@ int main() {
     InitWindow(800, 600, "BuildComputer System");
     SetTargetFPS(60);
     
+    // Carregar base de dados de contas
+    loadAccounts();
+    
+    // Carregar componentes
     if (!loadComponents("componentes.realyb"))
         cout << "Aviso: Arquivo componentes.realyb nao encontrado!" << endl;
     
@@ -422,7 +525,7 @@ int main() {
                     loginUser = loginPass = "";
                 } else if (CheckCollisionPointRec(mousePos, {410, 460, 140, 50})) {
                     currentScreen = REGISTER;
-                    registerUser = registerPass = registerPassConfirm = registerMessage = "";
+                    registerUser = registerPass = registerPassConfirm = registerEmail = registerPhone = registerMessage = "";
                     registerFocusField = 0;
                 }
             }
@@ -449,18 +552,28 @@ int main() {
         // REGISTER SCREEN
         else if (currentScreen == REGISTER) {
             if (registerFocusField == 0) handleTextInput(registerUser, 30);
-            else if (registerFocusField == 1) handleTextInput(registerPass, 30);
-            else if (registerFocusField == 2) handleTextInput(registerPassConfirm, 30);
+            else if (registerFocusField == 1) handleTextInput(registerEmail, 50);
+            else if (registerFocusField == 2) handleTextInput(registerPhone, 20);
+            else if (registerFocusField == 3) handleTextInput(registerPass, 30);
+            else if (registerFocusField == 4) handleTextInput(registerPassConfirm, 30);
             
-            if (IsKeyPressed(KEY_TAB)) registerFocusField = (registerFocusField + 1) % 3;
+            if (IsKeyPressed(KEY_TAB)) registerFocusField = (registerFocusField + 1) % 5;
             
             if (mouseClick) {
-                if (CheckCollisionPointRec(mousePos, {200, 210, 400, 40})) registerFocusField = 0;
-                else if (CheckCollisionPointRec(mousePos, {200, 300, 400, 40})) registerFocusField = 1;
-                else if (CheckCollisionPointRec(mousePos, {200, 390, 400, 40})) registerFocusField = 2;
-                else if (CheckCollisionPointRec(mousePos, {250, 500, 140, 50})) {
-                    if (registerUser.empty() || registerPass.empty()) {
+                if (CheckCollisionPointRec(mousePos, {200, 130, 400, 38})) registerFocusField = 0;
+                else if (CheckCollisionPointRec(mousePos, {200, 200, 400, 38})) registerFocusField = 1;
+                else if (CheckCollisionPointRec(mousePos, {200, 270, 400, 38})) registerFocusField = 2;
+                else if (CheckCollisionPointRec(mousePos, {200, 340, 400, 38})) registerFocusField = 3;
+                else if (CheckCollisionPointRec(mousePos, {200, 410, 400, 38})) registerFocusField = 4;
+                else if (CheckCollisionPointRec(mousePos, {250, 510, 140, 45})) {
+                    // Validação
+                    if (registerUser.empty() || registerEmail.empty() || registerPhone.empty() || 
+                        registerPass.empty() || registerPassConfirm.empty()) {
                         registerMessage = "Preencha todos os campos!";
+                    } else if (!validateEmail(registerEmail)) {
+                        registerMessage = "Email invalido!";
+                    } else if (!validatePhone(registerPhone)) {
+                        registerMessage = "Numero de telemovel invalido (min 9 digitos)!";
                     } else if (registerPass != registerPassConfirm) {
                         registerMessage = "Senhas nao coincidem!";
                     } else {
@@ -474,12 +587,21 @@ int main() {
                         if (exists) {
                             registerMessage = "Usuario ja existe!";
                         } else {
-                            accounts.push_back({registerUser, registerPass, false});
+                            // Criar nova conta
+                            Account newAcc;
+                            newAcc.username = registerUser;
+                            newAcc.password = registerPass;
+                            newAcc.email = registerEmail;
+                            newAcc.phone = registerPhone;
+                            newAcc.isAdmin = false;
+                            accounts.push_back(newAcc);
+                            saveAccounts(); // Salvar na base de dados
                             registerMessage = "Conta criada com sucesso!";
-                            feedbackTimer = 120;
+                            feedbackTimer = 180;
+                            cout << "Nova conta criada: " << registerUser << " | " << registerEmail << " | " << registerPhone << endl;
                         }
                     }
-                } else if (CheckCollisionPointRec(mousePos, {410, 500, 140, 50})) {
+                } else if (CheckCollisionPointRec(mousePos, {410, 510, 140, 45})) {
                     currentScreen = LOGIN;
                 }
             }
@@ -488,31 +610,45 @@ int main() {
         // MENU SCREEN
         else if (currentScreen == MENU) {
             if (mouseClick) {
-                if (CheckCollisionPointRec(mousePos, {250, 160, 300, 60})) currentScreen = COMO_MONTAR;
-                else if (CheckCollisionPointRec(mousePos, {250, 240, 300, 60})) currentScreen = ESCOLHER_PECAS;
-                else if (CheckCollisionPointRec(mousePos, {250, 320, 300, 60})) currentScreen = VER_PRECOS;
-                else if (CheckCollisionPointRec(mousePos, {250, 400, 300, 60}) && isCurrentUserAdmin) {
-                    currentScreen = ADMIN_PANEL;
-                    adminSelectedIndex = -1;
-                    adminScrollOffset = 0;
-                }
-                else if (CheckCollisionPointRec(mousePos, {250, 480, 300, 60})) {
-                    currentScreen = LOGIN;
-                    currentUser = "";
-                    isCurrentUserAdmin = false;
-                    buildAtual.clear();
+                if (isCurrentUserAdmin) {if (CheckCollisionPointRec(mousePos, {250, 160, 300, 60})) {
+                        currentScreen = COMO_MONTAR;
+                    } else if (CheckCollisionPointRec(mousePos, {250, 240, 300, 60})) {
+                        currentScreen = ESCOLHER_PECAS;
+                        pecasScrollOffset = 0;
+                    } else if (CheckCollisionPointRec(mousePos, {250, 320, 300, 60})) {
+                        currentScreen = VER_PRECOS;
+                    } else if (CheckCollisionPointRec(mousePos, {250, 400, 300, 60})) {
+                        currentScreen = ADMIN_PANEL;
+                        adminScrollOffset = 0;
+                        adminSelectedIndex = -1;
+                    } else if (CheckCollisionPointRec(mousePos, {250, 480, 300, 60})) {
+                        currentUser = "";
+                        isCurrentUserAdmin = false;
+                        currentScreen = LOGIN;
+                        buildAtual.clear();
+                    }
+                } else {
+                    if (CheckCollisionPointRec(mousePos, {250, 180, 300, 60})) {
+                        currentScreen = COMO_MONTAR;
+                    } else if (CheckCollisionPointRec(mousePos, {250, 270, 300, 60})) {
+                        currentScreen = ESCOLHER_PECAS;
+                        pecasScrollOffset = 0;
+                    } else if (CheckCollisionPointRec(mousePos, {250, 360, 300, 60})) {
+                        currentScreen = VER_PRECOS;
+                    } else if (CheckCollisionPointRec(mousePos, {250, 450, 300, 60})) {
+                        currentUser = "";
+                        isCurrentUserAdmin = false;
+                        currentScreen = LOGIN;
+                        buildAtual.clear();
+                    }
                 }
             }
         }
         
         // ESCOLHER PECAS SCREEN
         else if (currentScreen == ESCOLHER_PECAS) {
+            // Filtro de categorias
             if (mouseClick) {
-                if (CheckCollisionPointRec(mousePos, {650, 20, 100, 35})) {
-                    currentScreen = MENU;
-                    pecasScrollOffset = 0;
-                }
-                
                 vector<string> categorias = {"Todos", "CPU", "GPU", "RAM", "Motherboard", "Storage", "PSU", "Case", "Cooler"};
                 int btnX = 130;
                 for (auto &cat : categorias) {
@@ -520,61 +656,76 @@ int main() {
                     if (CheckCollisionPointRec(mousePos, {(float)btnX, 65, (float)btnWidth, 30})) {
                         filtroCategoria = cat;
                         pecasScrollOffset = 0;
+                        break;
                     }
                     btnX += btnWidth + 5;
                 }
                 
+                // Botão voltar
+                if (CheckCollisionPointRec(mousePos, {650, 20, 100, 35})) {
+                    currentScreen = MENU;
+                }
+                
+                // Adicionar peças à build
                 vector<Component> filtered;
                 for (auto &c : catalog)
                     if (filtroCategoria == "Todos" || c.tipo == filtroCategoria)
                         filtered.push_back(c);
                 
-                int y = 130;
-                for (size_t i = pecasScrollOffset; i < filtered.size() && i < (size_t)(pecasScrollOffset + 9); i++) {
+                int y = 130, maxVisible = 9;
+                for (size_t i = pecasScrollOffset; i < filtered.size() && i < (size_t)(pecasScrollOffset + maxVisible); i++) {
                     if (CheckCollisionPointRec(mousePos, {710, (float)y, 40, 35})) {
                         buildAtual.push_back(filtered[i]);
                         feedbackMessage = "Componente adicionado!";
-                        feedbackTimer = 60;
+                        feedbackTimer = 120;
+                        break;
                     }
                     y += 45;
                 }
             }
             
+            // Scroll
             if (mouseWheel != 0) {
                 vector<Component> filtered;
                 for (auto &c : catalog)
                     if (filtroCategoria == "Todos" || c.tipo == filtroCategoria)
                         filtered.push_back(c);
                 
+                int maxVisible = 9;
                 pecasScrollOffset -= (int)mouseWheel;
                 if (pecasScrollOffset < 0) pecasScrollOffset = 0;
-                if (pecasScrollOffset > (int)filtered.size() - 9) 
-                    pecasScrollOffset = max(0, (int)filtered.size() - 9);
+                if (pecasScrollOffset > (int)filtered.size() - maxVisible) 
+                    pecasScrollOffset = max(0, (int)filtered.size() - maxVisible);
             }
         }
         
         // VER PRECOS SCREEN
         else if (currentScreen == VER_PRECOS) {
             if (mouseClick) {
-                if (CheckCollisionPointRec(mousePos, {650, 20, 100, 35})) currentScreen = MENU;
+                // Botão voltar
+                if (CheckCollisionPointRec(mousePos, {650, 20, 100, 35})) {
+                    currentScreen = MENU;
+                }
                 
+                // Remover componentes
                 if (!buildAtual.empty()) {
                     int y = 90;
                     for (size_t i = 0; i < buildAtual.size(); i++) {
                         if (CheckCollisionPointRec(mousePos, {710, (float)y, 40, 35})) {
                             buildAtual.erase(buildAtual.begin() + i);
                             feedbackMessage = "Componente removido!";
-                            feedbackTimer = 60;
+                            feedbackTimer = 120;
                             break;
                         }
                         y += 45;
                     }
                     
-                    int totalY = 90 + (int)buildAtual.size() * 45 + 70;
-                    if (!buildAtual.empty() && CheckCollisionPointRec(mousePos, {50, (float)totalY, 150, 40})) {
+                    // Botão limpar build
+                    y = 90 + buildAtual.size() * 45;
+                    if (CheckCollisionPointRec(mousePos, {50, (float)y + 70, 150, 40})) {
                         buildAtual.clear();
                         feedbackMessage = "Build limpa!";
-                        feedbackTimer = 60;
+                        feedbackTimer = 120;
                     }
                 }
             }
@@ -590,14 +741,13 @@ int main() {
         // ADMIN PANEL SCREEN
         else if (currentScreen == ADMIN_PANEL) {
             if (mouseClick) {
+                // Botões superiores
                 if (CheckCollisionPointRec(mousePos, {50, 110, 150, 45})) {
                     currentScreen = ADMIN_ADD;
                     adminId = adminTipo = adminNome = adminSpecs = adminPreco = adminMessage = "";
                     adminFocusField = 0;
-                }
-                else if (CheckCollisionPointRec(mousePos, {220, 110, 150,45})) {
-                    if (adminSelectedIndex >= 0) {
-                        currentScreen = ADMIN_EDIT;
+                } else if (CheckCollisionPointRec(mousePos, {220, 110, 150, 45})) {
+                    if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
                         auto &c = catalog[adminSelectedIndex];
                         adminId = c.id;
                         adminTipo = c.tipo;
@@ -606,42 +756,42 @@ int main() {
                         adminPreco = to_string(c.preco);
                         adminMessage = "";
                         adminFocusField = 0;
+                        currentScreen = ADMIN_EDIT;
                     } else {
-                        adminMessage = "Selecione um componente primeiro!";
+                        feedbackMessage = "Selecione um componente primeiro!";
                         feedbackTimer = 120;
                     }
-                }
-                else if (CheckCollisionPointRec(mousePos, {390, 110, 150, 45})) {
-                    if (adminSelectedIndex >= 0) {
+                } else if (CheckCollisionPointRec(mousePos, {390, 110, 150, 45})) {
+                    if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
                         currentScreen = ADMIN_DELETE;
                         adminMessage = "";
                     } else {
-                        adminMessage = "Selecione um componente primeiro!";
+                        feedbackMessage = "Selecione um componente primeiro!";
                         feedbackTimer = 120;
                     }
-                }
-                else if (CheckCollisionPointRec(mousePos, {560, 110, 150, 45})) {
+                } else if (CheckCollisionPointRec(mousePos, {560, 110, 150, 45})) {
                     currentScreen = MENU;
                     adminSelectedIndex = -1;
-                    adminScrollOffset = 0;
                 }
                 
-                // Click to select component
-                int y = 190;
-                for (size_t i = adminScrollOffset; i < catalog.size() && i < (size_t)(adminScrollOffset + 8); i++) {
+                // Selecionar componente na lista
+                int y = 190, maxVisible = 8;
+                for (size_t i = adminScrollOffset; i < catalog.size() && i < (size_t)(adminScrollOffset + maxVisible); i++) {
                     if (CheckCollisionPointRec(mousePos, {50, (float)y - 5, 700, 35})) {
-                        adminSelectedIndex = (int)i;
+                        adminSelectedIndex = i;
                         break;
                     }
                     y += 37;
                 }
             }
             
+            // Scroll
             if (mouseWheel != 0) {
+                int maxVisible = 8;
                 adminScrollOffset -= (int)mouseWheel;
                 if (adminScrollOffset < 0) adminScrollOffset = 0;
-                if (adminScrollOffset > (int)catalog.size() - 8)
-                    adminScrollOffset = max(0, (int)catalog.size() - 8);
+                if (adminScrollOffset > (int)catalog.size() - maxVisible)
+                    adminScrollOffset = max(0, (int)catalog.size() - maxVisible);
             }
         }
         
@@ -649,8 +799,8 @@ int main() {
         else if (currentScreen == ADMIN_ADD) {
             if (adminFocusField == 0) handleTextInput(adminId, 20);
             else if (adminFocusField == 1) handleTextInput(adminTipo, 30);
-            else if (adminFocusField == 2) handleTextInput(adminNome, 100);
-            else if (adminFocusField == 3) handleTextInput(adminSpecs, 150);
+            else if (adminFocusField == 2) handleTextInput(adminNome, 50);
+            else if (adminFocusField == 3) handleTextInput(adminSpecs, 100);
             else if (adminFocusField == 4) handleTextInput(adminPreco, 20);
             
             if (IsKeyPressed(KEY_TAB)) adminFocusField = (adminFocusField + 1) % 5;
@@ -664,10 +814,12 @@ int main() {
                     }
                 }
                 
+                // Botão SALVAR
                 if (CheckCollisionPointRec(mousePos, {250, 520, 130, 45})) {
                     if (adminId.empty() || adminTipo.empty() || adminNome.empty() || adminPreco.empty()) {
                         adminMessage = "Preencha todos os campos obrigatorios!";
                     } else {
+                        // Verificar se ID já existe
                         bool exists = false;
                         for (auto &c : catalog) {
                             if (c.id == adminId) {
@@ -678,26 +830,27 @@ int main() {
                         if (exists) {
                             adminMessage = "ID ja existe!";
                         } else {
-                            Component newComp;
-                            newComp.id = adminId;
-                            newComp.tipo = adminTipo;
-                            newComp.nome = adminNome;
-                            newComp.specs = adminSpecs;
                             try {
+                                Component newComp;
+                                newComp.id = adminId;
+                                newComp.tipo = adminTipo;
+                                newComp.nome = adminNome;
+                                newComp.specs = adminSpecs.empty() ? "N/A" : adminSpecs;
                                 newComp.preco = stod(adminPreco);
                                 catalog.push_back(newComp);
                                 saveComponents();
                                 adminMessage = "Componente adicionado com sucesso!";
-                                feedbackTimer = 120;
-                            } catch(...) {
-                                adminMessage = "Preco invalido!";
+                                feedbackTimer = 180;
+                                cout << "Novo componente: " << newComp.id << " | " << newComp.nome << endl;
+                            } catch (...) {
+                                adminMessage = "Erro no formato do preco (use ponto)!";
                             }
                         }
                     }
                 }
+                // Botão CANCELAR
                 else if (CheckCollisionPointRec(mousePos, {420, 520, 130, 45})) {
                     currentScreen = ADMIN_PANEL;
-                    adminMessage = "";
                 }
             }
         }
@@ -707,8 +860,8 @@ int main() {
             if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
                 if (adminFocusField == 0) handleTextInput(adminId, 20);
                 else if (adminFocusField == 1) handleTextInput(adminTipo, 30);
-                else if (adminFocusField == 2) handleTextInput(adminNome, 100);
-                else if (adminFocusField == 3) handleTextInput(adminSpecs, 150);
+                else if (adminFocusField == 2) handleTextInput(adminNome, 50);
+                else if (adminFocusField == 3) handleTextInput(adminSpecs, 100);
                 else if (adminFocusField == 4) handleTextInput(adminPreco, 20);
                 
                 if (IsKeyPressed(KEY_TAB)) adminFocusField = (adminFocusField + 1) % 5;
@@ -722,27 +875,29 @@ int main() {
                         }
                     }
                     
+                    // Botão SALVAR
                     if (CheckCollisionPointRec(mousePos, {250, 520, 130, 45})) {
                         if (adminId.empty() || adminTipo.empty() || adminNome.empty() || adminPreco.empty()) {
                             adminMessage = "Preencha todos os campos obrigatorios!";
                         } else {
-                            catalog[adminSelectedIndex].id = adminId;
-                            catalog[adminSelectedIndex].tipo = adminTipo;
-                            catalog[adminSelectedIndex].nome = adminNome;
-                            catalog[adminSelectedIndex].specs = adminSpecs;
                             try {
+                                catalog[adminSelectedIndex].id = adminId;
+                                catalog[adminSelectedIndex].tipo = adminTipo;
+                                catalog[adminSelectedIndex].nome = adminNome;
+                                catalog[adminSelectedIndex].specs = adminSpecs.empty() ? "N/A" : adminSpecs;
                                 catalog[adminSelectedIndex].preco = stod(adminPreco);
                                 saveComponents();
                                 adminMessage = "Componente editado com sucesso!";
-                                feedbackTimer = 120;
-                            } catch(...) {
-                                adminMessage = "Preco invalido!";
+                                feedbackTimer = 180;
+                                cout << "Componente editado: " << adminId << endl;
+                            } catch (...) {
+                                adminMessage = "Erro no formato do preco (use ponto)!";
                             }
                         }
                     }
+                    // Botão CANCELAR
                     else if (CheckCollisionPointRec(mousePos, {420, 520, 130, 45})) {
                         currentScreen = ADMIN_PANEL;
-                        adminMessage = "";
                     }
                 }
             } else {
@@ -755,22 +910,26 @@ int main() {
         // ADMIN DELETE SCREEN
         else if (currentScreen == ADMIN_DELETE) {
             if (mouseClick) {
-                if (CheckCollisionPointRec(mousePos, {250, 450, 130, 45})) {
-                    if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
+                if (adminSelectedIndex >= 0 && adminSelectedIndex < (int)catalog.size()) {
+                    // Botão EXCLUIR
+                    if (CheckCollisionPointRec(mousePos, {250, 450, 130, 45})) {
+                        string deletedName = catalog[adminSelectedIndex].nome;
                         catalog.erase(catalog.begin() + adminSelectedIndex);
                         saveComponents();
                         adminMessage = "Componente excluido com sucesso!";
                         adminSelectedIndex = -1;
-                        feedbackTimer = 120;
+                        feedbackTimer = 180;
+                        cout << "Componente excluido: " << deletedName << endl;
                         currentScreen = ADMIN_PANEL;
                     }
-                }
-                else if (CheckCollisionPointRec(mousePos, {420, 450, 130, 45})) {
-                    currentScreen = ADMIN_PANEL;
-                    adminMessage = "";
-                }
-                else if (adminSelectedIndex < 0 && CheckCollisionPointRec(mousePos, {300, 400, 200, 50})) {
-                    currentScreen = ADMIN_PANEL;
+                    // Botão CANCELAR
+                    else if (CheckCollisionPointRec(mousePos, {420, 450, 130, 45})) {
+                        currentScreen = ADMIN_PANEL;
+                    }
+                } else {
+                    if (CheckCollisionPointRec(mousePos, {300, 400, 200, 50})) {
+                        currentScreen = ADMIN_PANEL;
+                    }
                 }
             }
         }
@@ -792,10 +951,10 @@ int main() {
             case ADMIN_DELETE: drawAdminDeleteScreen(); break;
         }
         
-        if (!feedbackMessage.empty() && feedbackTimer > 0) {
-            DrawRectangle(200, 10, 400, 40, Fade(RED, 0.8f));
-            int textWidth = MeasureText(feedbackMessage.c_str(), 16);
-            DrawText(feedbackMessage.c_str(), 400 - textWidth / 2, 20, 16, WHITE);
+        // Feedback message (global)
+        if (feedbackTimer > 0 && !feedbackMessage.empty()) {
+            DrawRectangle(200, 10, 400, 40, Fade(BLACK, 0.7f));
+            DrawText(feedbackMessage.c_str(), 210, 20, 18, WHITE);
         }
         
         EndDrawing();
