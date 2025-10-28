@@ -45,6 +45,13 @@ struct PCSlot {
         : bounds(b), tipo(t), label(l), filled(false) {}
 };
 
+// ==================== ENUMERAÇÕES ====================
+
+enum Screen { 
+    LOGIN, REGISTER, MENU, ESCOLHER_PECAS, VER_PRECOS, 
+    COMO_MONTAR, ADMIN_PANEL, ADMIN_ADD, ADMIN_EDIT, ADMIN_DELETE 
+};
+
 // ==================== VARIÁVEIS GLOBAIS ====================
 
 vector<Component> catalog, buildAtual;
@@ -53,10 +60,6 @@ vector<PCSlot> pcSlots;
 string currentUser = "";
 bool isCurrentUserAdmin = false;
 
-enum Screen { 
-    LOGIN, REGISTER, MENU, ESCOLHER_PECAS, VER_PRECOS, 
-    COMO_MONTAR, ADMIN_PANEL, ADMIN_ADD, ADMIN_EDIT, ADMIN_DELETE 
-};
 Screen currentScreen = LOGIN;
 
 string loginUser = "", loginPass = "";
@@ -73,6 +76,39 @@ Font arialFont;
 
 Component* draggedComponent = nullptr;
 Vector2 dragOffset = {0, 0};
+
+// ==================== DECLARAÇÕES DE FUNÇÕES ====================
+void drawLoginScreen();
+void drawRegisterScreen();
+void drawMenuScreen();
+void drawEscolherPecasScreen();
+void drawVerPrecosScreen();
+void drawComoMontarScreen();
+void drawAdminPanelScreen();
+void drawAdminAddScreen();
+void drawAdminEditScreen();
+void drawAdminDeleteScreen();
+
+void DrawNavBar();
+void DrawWolfLogo(float x, float y, float size);
+bool DrawButton(Rectangle bounds, const char* text, Color normalColor, Color hoverColor, Color textColor);
+void DrawCard(Card& card, const char* icon);
+void drawTextBox(const char* label, string &text, Rectangle box, bool focused, bool maskPassword = false);
+
+void saveAccounts();
+void loadAccounts();
+void saveComponents();
+bool loadComponents(const string &path);
+string formatBR(double v);
+double calcularTotal();
+void initPCSlots();
+bool validateEmail(const string &email);
+bool validatePhone(const string &phone);
+
+void handleTextInput(string &target, int maxLength);
+void handleLoginInput();
+void handleRegisterInput();
+void handleAdminInput();
 
 // ==================== FUNÇÕES AUXILIARES ====================
 
@@ -248,10 +284,7 @@ void initPCSlots() {
     int startX = 100;
     int startY = 200;
     
-    // Case (gabinete)
     pcSlots.push_back(PCSlot({(float)startX, (float)startY, 180, 400}, "Case", "Gabinete"));
-    
-    // Slots internos do PC
     pcSlots.push_back(PCSlot({(float)(startX + 20), (float)(startY + 20), 140, 50}, "Motherboard", "Placa-Mae"));
     pcSlots.push_back(PCSlot({(float)(startX + 20), (float)(startY + 80), 140, 40}, "CPU", "Processador"));
     pcSlots.push_back(PCSlot({(float)(startX + 20), (float)(startY + 130), 140, 60}, "GPU", "Placa Video"));
@@ -338,7 +371,7 @@ void DrawCard(Card& card, const char* icon) {
         18, 1, WHITE);
 }
 
-void drawTextBox(const char* label, string &text, Rectangle box, bool focused, bool maskPassword = false) {
+void drawTextBox(const char* label, string &text, Rectangle box, bool focused, bool maskPassword) {
     DrawTextEx(arialFont, label, Vector2{box.x, box.y - 25}, 18, 1, WHITE);
     DrawRectangleRounded(box, 0.1f, 20, focused ? Fade(RED, 0.2f) : Fade(WHITE, 0.1f));
     DrawRectangleRoundedLines(box, 0.1f, 20, focused ? RED : GRAY);
@@ -369,8 +402,26 @@ void drawLoginScreen() {
     drawTextBox("Usuario:", loginUser, {(float)(cx - 200), (float)(cy + 80), 400, 40}, loginFocusUser);
     drawTextBox("Senha:", loginPass, {(float)(cx - 200), (float)(cy + 160), 400, 40}, !loginFocusUser, true);
     
-    DrawButton({(float)(cx - 210), (float)(cy + 240), 180, 50}, "ENTRAR", {40, 40, 40, 255}, {60, 60, 60, 255}, WHITE);
-    DrawButton({(float)(cx + 30), (float)(cy + 240), 180, 50}, "CRIAR CONTA", {0, 100, 0, 255}, {0, 140, 0, 255}, WHITE);
+    bool loginClicked = DrawButton({(float)(cx - 210), (float)(cy + 240), 180, 50}, "ENTRAR", {40, 40, 40, 255}, {60, 60, 60, 255}, WHITE);
+    bool registerClicked = DrawButton({(float)(cx + 30), (float)(cy + 240), 180, 50}, "CRIAR CONTA", {0, 100, 0, 255}, {0, 140, 0, 255}, WHITE);
+    
+    if (loginClicked) {
+        for (auto &acc : accounts) {
+            if (acc.username == loginUser && acc.password == loginPass) {
+                currentUser = acc.username;
+                isCurrentUserAdmin = acc.isAdmin;
+                currentScreen = MENU;
+                loginUser = loginPass = "";
+                break;
+            }
+        }
+    }
+    
+    if (registerClicked) {
+        currentScreen = REGISTER;
+        registerUser = registerPass = registerPassConfirm = registerEmail = registerPhone = registerMessage = "";
+        registerFocusField = 0;
+    }
 }
 
 void drawRegisterScreen() {
@@ -394,8 +445,46 @@ void drawRegisterScreen() {
         DrawTextEx(arialFont, registerMessage.c_str(), Vector2{(GetScreenWidth() - msgSize.x)/2, (float)(cy + 180)}, 16, 1, msgColor);
     }
     
-    DrawButton({(float)(cx - 150), (float)(cy + 220), 130, 45}, "CRIAR", {0, 100, 0, 255}, {0, 140, 0, 255}, WHITE);
-    DrawButton({(float)(cx + 20), (float)(cy + 220), 130, 45}, "VOLTAR", {60, 60, 60, 255}, {80, 80, 80, 255}, WHITE);
+    bool createClicked = DrawButton({(float)(cx - 150), (float)(cy + 220), 130, 45}, "CRIAR", {0, 100, 0, 255}, {0, 140, 0, 255}, WHITE);
+    bool backClicked = DrawButton({(float)(cx + 20), (float)(cy + 220), 130, 45}, "VOLTAR", {60, 60, 60, 255}, {80, 80, 80, 255}, WHITE);
+    
+    if (createClicked) {
+        if (registerUser.empty() || registerEmail.empty() || registerPhone.empty() || registerPass.empty()) {
+            registerMessage = "Preencha todos os campos!";
+        } else if (!validateEmail(registerEmail)) {
+            registerMessage = "Email invalido!";
+        } else if (!validatePhone(registerPhone)) {
+            registerMessage = "Telemovel invalido!";
+        } else if (registerPass != registerPassConfirm) {
+            registerMessage = "As senhas nao coincidem!";
+        } else {
+            bool userExists = false;
+            for (auto &acc : accounts) {
+                if (acc.username == registerUser) {
+                    userExists = true;
+                    break;
+                }
+            }
+            
+            if (userExists) {
+                registerMessage = "Usuario ja existe!";
+            } else {
+                Account newAcc;
+                newAcc.username = registerUser;
+                newAcc.password = registerPass;
+                newAcc.email = registerEmail;
+                newAcc.phone = registerPhone;
+                newAcc.isAdmin = false;
+                accounts.push_back(newAcc);
+                saveAccounts();
+                registerMessage = "Conta criada com sucesso!";
+            }
+        }
+    }
+    
+    if (backClicked) {
+        currentScreen = LOGIN;
+    }
 }
 
 void drawMenuScreen() {
@@ -476,150 +565,6 @@ void drawMenuScreen() {
     }
 }
 
-void drawComoMontarScreen() {
-    DrawNavBar();
-    
-    Rectangle exitBtn = {(float)(GetScreenWidth() - 120), 25, 100, 35};
-    if (DrawButton(exitBtn, "← Sair", {40, 40, 40, 255}, {60, 60, 60, 255}, WHITE)) {
-        currentScreen = MENU;
-    }
-    
-    DrawTextEx(arialFont, "MONTAR PC - Arraste as pecas", Vector2{50, 120}, 32, 1, RED);
-    
-    // Desenhar o PC (gabinete principal)
-    DrawRectangleRounded({90, 190, 200, 420}, 0.05f, 20, {40, 40, 40, 255});
-    DrawRectangleRoundedLines({90, 190, 200, 420}, 0.05f, 20, RED);
-    
-    // Desenhar slots do PC
-    for (auto &slot : pcSlots) {
-        if (slot.tipo == "Case") continue; // Não desenhar o case como slot
-        
-        Color slotColor = slot.filled ? Fade(GREEN, 0.3f) : Fade(RED, 0.2f);
-        DrawRectangleRounded(slot.bounds, 0.1f, 20, slotColor);
-        DrawRectangleRoundedLines(slot.bounds, 0.1f, 20, slot.filled ? GREEN : GRAY);
-        
-        if (slot.filled) {
-            Vector2 nameSize = MeasureTextEx(arialFont, slot.component.nome.c_str(), 10, 1);
-            DrawTextEx(arialFont, slot.component.nome.c_str(), 
-                      Vector2{slot.bounds.x + (slot.bounds.width - nameSize.x) / 2, 
-                             slot.bounds.y + slot.bounds.height / 2 - 5}, 10, 1, WHITE);
-        } else {
-            Vector2 labelSize = MeasureTextEx(arialFont, slot.label.c_str(), 12, 1);
-            DrawTextEx(arialFont, slot.label.c_str(), 
-                      Vector2{slot.bounds.x + (slot.bounds.width - labelSize.x) / 2, 
-                             slot.bounds.y + slot.bounds.height / 2 - 6}, 12, 1, GRAY);
-        }
-    }
-    
-    // Lista de componentes disponíveis
-    DrawTextEx(arialFont, "Componentes Disponiveis:", Vector2{350, 180}, 20, 1, WHITE);
-    
-    Vector2 mousePos = GetMousePosition();
-    int listY = 220;
-    
-    for (size_t i = 0; i < buildAtual.size(); i++) {
-        Component &c = buildAtual[i];
-        Rectangle compRect = {350, (float)listY, 400, 50};
-        
-        bool isHovered = CheckCollisionPointRec(mousePos, compRect);
-        Color bgColor = isHovered ? Fade(RED, 0.3f) : Fade(WHITE, 0.1f);
-        
-        DrawRectangleRounded(compRect, 0.1f, 20, bgColor);
-        DrawRectangleRoundedLines(compRect, 0.1f, 20, isHovered ? RED : GRAY);
-        
-        DrawTextEx(arialFont, TextFormat("[%s]", c.tipo.c_str()), Vector2{360, (float)(listY + 5)}, 14, 1, RED);
-        DrawTextEx(arialFont, c.nome.c_str(), Vector2{360, (float)(listY + 25)}, 14, 1, WHITE);
-        
-        // Iniciar drag
-        if (isHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-            draggedComponent = &c;
-            dragOffset = {mousePos.x - compRect.x, mousePos.y - compRect.y};
-        }
-        
-        listY += 60;
-    }
-    
-    // Desenhar componente sendo arrastado
-    if (draggedComponent != nullptr) {
-        Rectangle dragRect = {mousePos.x - dragOffset.x, mousePos.y - dragOffset.y, 400, 50};
-        DrawRectangleRounded(dragRect, 0.1f, 20, Fade(YELLOW, 0.5f));
-        DrawRectangleRoundedLines(dragRect, 0.1f, 20, YELLOW);
-        DrawTextEx(arialFont, draggedComponent->nome.c_str(), 
-                  Vector2{dragRect.x + 10, dragRect.y + 15}, 14, 1, WHITE);
-        
-        // Soltar componente
-        if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
-            bool placed = false;
-            for (auto &slot : pcSlots) {
-                if (slot.tipo == "Case") continue;
-                
-                if (CheckCollisionPointRec(mousePos, slot.bounds)) {
-                    if (slot.tipo == draggedComponent->tipo || 
-                        (slot.tipo == "Storage" && (draggedComponent->tipo == "SSD" || draggedComponent->tipo == "HDD"))) {
-                        slot.filled = true;
-                        slot.component = *draggedComponent;
-                        
-                        // Remover da lista
-                        for (size_t j = 0; j < buildAtual.size(); j++) {
-                            if (&buildAtual[j] == draggedComponent) {
-                                buildAtual.erase(buildAtual.begin() + j);
-                                break;
-                            }
-                        }
-                        
-                        placed = true;
-                        feedbackMessage = "Componente instalado!";
-                        feedbackTimer = 120;
-                        break;
-                    }
-                }
-            }
-            
-            if (!placed) {
-                feedbackMessage = "Coloque no slot correto!";
-                feedbackTimer = 120;
-            }
-            
-            draggedComponent = nullptr;
-        }
-    }
-    
-    // Botão para limpar build
-    Rectangle clearBtn = {800, (float)(GetScreenHeight() - 80), 150, 40};
-    if (DrawButton(clearBtn, "Limpar Tudo", {100, 0, 0, 255}, {140, 0, 0, 255}, WHITE)) {
-        for (auto &slot : pcSlots) {
-            if (slot.filled) {
-                buildAtual.push_back(slot.component);
-                slot.filled = false;
-            }
-        }
-        feedbackMessage = "Build limpa!";
-        feedbackTimer = 120;
-    }
-    
-    // Info
-    int totalSlots = 0, filledSlots = 0;
-    for (auto &slot : pcSlots) {
-        if (slot.tipo != "Case") {
-            totalSlots++;
-            if (slot.filled) filledSlots++;
-        }
-    }
-    
-    DrawTextEx(arialFont, TextFormat("Progresso: %d/%d componentes instalados", filledSlots, totalSlots),
-               Vector2{350, (float)(GetScreenHeight() - 80)}, 18, 1, filledSlots == totalSlots ? GREEN : YELLOW);
-    
-    // Mensagem de feedback
-    if (feedbackTimer > 0) {
-        Color msgColor = (feedbackMessage.find("instalado") != string::npos || 
-                         feedbackMessage.find("limpa") != string::npos) ? GREEN : RED;
-        Vector2 msgSize = MeasureTextEx(arialFont, feedbackMessage.c_str(), 20, 1);
-        DrawTextEx(arialFont, feedbackMessage.c_str(), 
-                  Vector2{(GetScreenWidth() - msgSize.x) / 2, 150}, 20, 1, msgColor);
-        feedbackTimer--;
-    }
-}
-
 void drawEscolherPecasScreen() {
     DrawNavBar();
     
@@ -630,7 +575,6 @@ void drawEscolherPecasScreen() {
     
     DrawTextEx(arialFont, "ESCOLHER PECAS", Vector2{50, 120}, 32, 1, RED);
     
-    // Filtros
     vector<string> categorias = {"Todos", "CPU", "GPU", "RAM", "Motherboard", "PSU", "Case", "Cooler", "SSD", "HDD"};
     int filterY = 170;
     int filterX = 50;
@@ -660,9 +604,7 @@ void drawEscolherPecasScreen() {
         }
     }
     
-    // Lista de componentes
     int listY = 270 - pecasScrollOffset;
-    int visibleItems = 0;
     
     for (auto &c : catalog) {
         if (filtroCategoria != "Todos" && c.tipo != filtroCategoria) continue;
@@ -681,11 +623,9 @@ void drawEscolherPecasScreen() {
             DrawTextEx(arialFont, c.specs.c_str(), Vector2{60, (float)(listY + 58)}, 14, 1, GRAY);
             
             string precoStr = formatBR(c.preco);
-            Vector2 precoSize = MeasureTextEx(arialFont, precoStr.c_str(), 20, 1);
             DrawTextEx(arialFont, precoStr.c_str(), 
-                      Vector2{compRect.x + compRect.width - precoSize.x - 150, (float)(listY + 25)}, 20, 1, GREEN);
+                      Vector2{compRect.x + compRect.width - 280, (float)(listY + 25)}, 20, 1, GREEN);
             
-            // Verificar se já está na build
             bool jaAdicionado = false;
             for (const auto &b : buildAtual) {
                 if (b.id == c.id) {
@@ -722,20 +662,16 @@ void drawEscolherPecasScreen() {
                 }
                 feedbackTimer = 120;
             }
-            
-            visibleItems++;
         }
         listY += 90;
     }
     
-    // Scroll
     float scrollWheel = GetMouseWheelMove();
     if (scrollWheel != 0) {
         pecasScrollOffset -= (int)(scrollWheel * 40);
         if (pecasScrollOffset < 0) pecasScrollOffset = 0;
     }
     
-    // Info da build atual
     DrawRectangle(0, GetScreenHeight() - 60, GetScreenWidth(), 60, {20, 20, 20, 255});
     DrawLine(0, GetScreenHeight() - 60, GetScreenWidth(), GetScreenHeight() - 60, RED);
     
@@ -744,7 +680,6 @@ void drawEscolherPecasScreen() {
     DrawTextEx(arialFont, TextFormat("Total: %s", formatBR(calcularTotal()).c_str()), 
                Vector2{20, (float)(GetScreenHeight() - 20)}, 18, 1, GREEN);
     
-    // Mensagem de feedback
     if (feedbackTimer > 0) {
         Color msgColor = (feedbackMessage.find("Adicionado") != string::npos || 
                          feedbackMessage.find("Removido") != string::npos) ? GREEN : RED;
@@ -791,14 +726,12 @@ void drawVerPrecosScreen() {
         DrawTextEx(arialFont, c.specs.c_str(), Vector2{400, (float)(listY + 20)}, 14, 1, GRAY);
         
         string precoStr = formatBR(c.preco);
-        Vector2 precoSize = MeasureTextEx(arialFont, precoStr.c_str(), 18, 1);
         DrawTextEx(arialFont, precoStr.c_str(), 
                   Vector2{(float)(GetScreenWidth() - 200), (float)(listY + 20)}, 18, 1, GREEN);
         
         listY += 70;
     }
     
-    // Total
     DrawRectangle(0, GetScreenHeight() - 100, GetScreenWidth(), 100, {20, 20, 20, 255});
     DrawLine(0, GetScreenHeight() - 100, GetScreenWidth(), GetScreenHeight() - 100, RED);
     
@@ -815,6 +748,140 @@ void drawVerPrecosScreen() {
         buildAtual.clear();
         feedbackMessage = "Build limpa!";
         feedbackTimer = 120;
+    }
+}
+
+void drawComoMontarScreen() {
+    DrawNavBar();
+    
+    Rectangle exitBtn = {(float)(GetScreenWidth() - 120), 25, 100, 35};
+    if (DrawButton(exitBtn, "← Sair", {40, 40, 40, 255}, {60, 60, 60, 255}, WHITE)) {
+        currentScreen = MENU;
+    }
+    
+    DrawTextEx(arialFont, "MONTAR PC - Arraste as pecas", Vector2{50, 120}, 32, 1, RED);
+    
+    DrawRectangleRounded({90, 190, 200, 420}, 0.05f, 20, {40, 40, 40, 255});
+    DrawRectangleRoundedLines({90, 190, 200, 420}, 0.05f, 20, RED);
+    
+    for (auto &slot : pcSlots) {
+        if (slot.tipo == "Case") continue;
+        
+        Color slotColor = slot.filled ? Fade(GREEN, 0.3f) : Fade(RED, 0.2f);
+        DrawRectangleRounded(slot.bounds, 0.1f, 20, slotColor);
+        DrawRectangleRoundedLines(slot.bounds, 0.1f, 20, slot.filled ? GREEN : GRAY);
+        
+        if (slot.filled) {
+            Vector2 nameSize = MeasureTextEx(arialFont, slot.component.nome.c_str(), 10, 1);
+            DrawTextEx(arialFont, slot.component.nome.c_str(), 
+                      Vector2{slot.bounds.x + (slot.bounds.width - nameSize.x) / 2, 
+                             slot.bounds.y + slot.bounds.height / 2 - 5}, 10, 1, WHITE);
+        } else {
+            Vector2 labelSize = MeasureTextEx(arialFont, slot.label.c_str(), 12, 1);
+            DrawTextEx(arialFont, slot.label.c_str(), 
+                      Vector2{slot.bounds.x + (slot.bounds.width - labelSize.x) / 2, 
+                             slot.bounds.y + slot.bounds.height / 2 - 6}, 12, 1, GRAY);
+        }
+    }
+    
+    DrawTextEx(arialFont, "Componentes Disponiveis:", Vector2{350, 180}, 20, 1, WHITE);
+    
+    Vector2 mousePos = GetMousePosition();
+    int listY = 220;
+    
+    for (size_t i = 0; i < buildAtual.size(); i++) {
+        Component &c = buildAtual[i];
+        Rectangle compRect = {350, (float)listY, 400, 50};
+        
+        bool isHovered = CheckCollisionPointRec(mousePos, compRect);
+        Color bgColor = isHovered ? Fade(RED, 0.3f) : Fade(WHITE, 0.1f);
+        
+        DrawRectangleRounded(compRect, 0.1f, 20, bgColor);
+        DrawRectangleRoundedLines(compRect, 0.1f, 20, isHovered ? RED : GRAY);
+        
+        DrawTextEx(arialFont, TextFormat("[%s]", c.tipo.c_str()), Vector2{360, (float)(listY + 5)}, 14, 1, RED);
+        DrawTextEx(arialFont, c.nome.c_str(), Vector2{360, (float)(listY + 25)}, 14, 1, WHITE);
+        
+        if (isHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            draggedComponent = &c;
+            dragOffset = {mousePos.x - compRect.x, mousePos.y - compRect.y};
+        }
+        
+        listY += 60;
+    }
+    
+    if (draggedComponent != nullptr) {
+        Rectangle dragRect = {mousePos.x - dragOffset.x, mousePos.y - dragOffset.y, 400, 50};
+        DrawRectangleRounded(dragRect, 0.1f, 20, Fade(YELLOW, 0.5f));
+        DrawRectangleRoundedLines(dragRect, 0.1f, 20, YELLOW);
+        DrawTextEx(arialFont, draggedComponent->nome.c_str(), 
+                  Vector2{dragRect.x + 10, dragRect.y + 15}, 14, 1, WHITE);
+        
+        if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+            bool placed = false;
+            for (auto &slot : pcSlots) {
+                if (slot.tipo == "Case") continue;
+                
+                if (CheckCollisionPointRec(mousePos, slot.bounds)) {
+                    if (slot.tipo == draggedComponent->tipo || 
+                        (slot.tipo == "Storage" && (draggedComponent->tipo == "SSD" || draggedComponent->tipo == "HDD"))) {
+                        slot.filled = true;
+                        slot.component = *draggedComponent;
+                        
+                        for (size_t j = 0; j < buildAtual.size(); j++) {
+                            if (&buildAtual[j] == draggedComponent) {
+                                buildAtual.erase(buildAtual.begin() + j);
+                                break;
+                            }
+                        }
+                        
+                        placed = true;
+                        feedbackMessage = "Componente instalado!";
+                        feedbackTimer = 120;
+                        break;
+                    }
+                }
+            }
+            
+            if (!placed) {
+                feedbackMessage = "Coloque no slot correto!";
+                feedbackTimer = 120;
+            }
+            
+            draggedComponent = nullptr;
+        }
+    }
+    
+    Rectangle clearBtn = {800, (float)(GetScreenHeight() - 80), 150, 40};
+    if (DrawButton(clearBtn, "Limpar Tudo", {100, 0, 0, 255}, {140, 0, 0, 255}, WHITE)) {
+        for (auto &slot : pcSlots) {
+            if (slot.filled) {
+                buildAtual.push_back(slot.component);
+                slot.filled = false;
+            }
+        }
+        feedbackMessage = "Build limpa!";
+        feedbackTimer = 120;
+    }
+    
+    int totalSlots = 0, filledSlots = 0;
+    for (auto &slot : pcSlots) {
+        if (slot.tipo != "Case") {
+            totalSlots++;
+            if (slot.filled) filledSlots++;
+        }
+    }
+    
+    DrawTextEx(arialFont, TextFormat("Progresso: %d/%d componentes instalados", filledSlots, totalSlots),
+               Vector2{350, (float)(GetScreenHeight() - 80)}, 18, 1, filledSlots == totalSlots ? GREEN : YELLOW);
+    
+    if (feedbackTimer > 0) {
+        Color msgColor = (feedbackMessage.find("instalado") != string::npos || 
+                         feedbackMessage.find("limpa") != string::npos) ? GREEN : RED;
+        Vector2 msgSize = MeasureTextEx(arialFont, feedbackMessage.c_str(), 20, 1);
+        DrawTextEx(arialFont, feedbackMessage.c_str(), 
+                  Vector2{(GetScreenWidth() - msgSize.x) / 2, 150}, 20, 1, msgColor);
+        feedbackTimer--;
     }
 }
 
@@ -850,7 +917,6 @@ void drawAdminPanelScreen() {
         adminMessage = "";
     }
     
-    // Lista de componentes
     DrawTextEx(arialFont, TextFormat("Total de componentes: %d", (int)catalog.size()), 
                Vector2{50, 260}, 20, 1, WHITE);
     
@@ -868,9 +934,9 @@ void drawAdminPanelScreen() {
             DrawTextEx(arialFont, c.specs.c_str(), Vector2{60, (float)(listY + 50)}, 12, 1, GRAY);
             
             string precoStr = formatBR(c.preco);
-            Vector2 precoSize = MeasureTextEx(arialFont, precoStr.c_str(), 18, 1);
+            float precoWidth = MeasureTextEx(arialFont, precoStr.c_str(), 18, 1).x;
             DrawTextEx(arialFont, precoStr.c_str(), 
-                      Vector2{GetScreenWidth() - precoSize.x - 60, (float)(listY + 25)}, 18, 1, GREEN);
+                      Vector2{GetScreenWidth() - precoWidth - 60, (float)(listY + 25)}, 18, 1, GREEN);
         }
         listY += 80;
     }
@@ -1052,327 +1118,241 @@ void drawAdminDeleteScreen() {
         listY += 70;
     }
     
-    if (!adminMessage.empty()) {
-        Vector2 msgSize = MeasureTextEx(arialFont, adminMessage.c_str(), 18, 1);
-        DrawTextEx(arialFont, adminMessage.c_str(), 
-                  Vector2{(GetScreenWidth() - msgSize.x) / 2, 150}, 18, 1, GREEN);
-    }
-    
     float scrollWheel = GetMouseWheelMove();
     if (scrollWheel != 0) {
         adminScrollOffset -= (int)(scrollWheel * 40);
         if (adminScrollOffset < 0) adminScrollOffset = 0;
+    }
+    
+    if (!adminMessage.empty()) {
+        Vector2 msgSize = MeasureTextEx(arialFont, adminMessage.c_str(), 18, 1);// CONTINUAÇÃO DO CÓDIGO - drawAdminDeleteScreen (final)
+
+        DrawTextEx(arialFont, adminMessage.c_str(), 
+                  Vector2{(GetScreenWidth() - msgSize.x) / 2, (float)(GetScreenHeight() - 120)}, 18, 1, GREEN);
+    }
+}
+
+// ==================== INPUT HANDLING ====================
+
+void handleTextInput(string &target, int maxLength) {
+    int key = GetCharPressed();
+    while (key > 0) {
+        if ((key >= 32) && (key <= 125) && (target.length() < (size_t)maxLength)) {
+            target += (char)key;
+        }
+        key = GetCharPressed();
+    }
+    
+    if (IsKeyPressed(KEY_BACKSPACE) && !target.empty()) {
+        target.pop_back();
+    }
+}
+
+void handleLoginInput() {
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        Vector2 mousePos = GetMousePosition();
+        int cx = getCenterX();
+        int cy = getCenterY();
+        
+        Rectangle userBox = {(float)(cx - 200), (float)(cy + 80), 400, 40};
+        Rectangle passBox = {(float)(cx - 200), (float)(cy + 160), 400, 40};
+        
+        if (CheckCollisionPointRec(mousePos, userBox)) {
+            loginFocusUser = true;
+        } else if (CheckCollisionPointRec(mousePos, passBox)) {
+            loginFocusUser = false;
+        }
+    }
+    
+    if (IsKeyPressed(KEY_TAB)) {
+        loginFocusUser = !loginFocusUser;
+    }
+    
+    if (IsKeyPressed(KEY_ENTER)) {
+        for (auto &acc : accounts) {
+            if (acc.username == loginUser && acc.password == loginPass) {
+                currentUser = acc.username;
+                isCurrentUserAdmin = acc.isAdmin;
+                currentScreen = MENU;
+                loginUser = loginPass = "";
+                return;
+            }
+        }
+    }
+    
+    if (loginFocusUser) {
+        handleTextInput(loginUser, 30);
+    } else {
+        handleTextInput(loginPass, 30);
+    }
+}
+
+void handleRegisterInput() {
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        Vector2 mousePos = GetMousePosition();
+        int cx = getCenterX();
+        int cy = getCenterY();
+        
+        Rectangle boxes[5] = {
+            {(float)(cx - 250), (float)(cy - 120), 500, 38},
+            {(float)(cx - 250), (float)(cy - 60), 500, 38},
+            {(float)(cx - 250), (float)cy, 500, 38},
+            {(float)(cx - 250), (float)(cy + 60), 500, 38},
+            {(float)(cx - 250), (float)(cy + 120), 500, 38}
+        };
+        
+        for (int i = 0; i < 5; i++) {
+            if (CheckCollisionPointRec(mousePos, boxes[i])) {
+                registerFocusField = i;
+                break;
+            }
+        }
+    }
+    
+    if (IsKeyPressed(KEY_TAB)) {
+        registerFocusField = (registerFocusField + 1) % 5;
+    }
+    
+    switch (registerFocusField) {
+        case 0: handleTextInput(registerUser, 30); break;
+        case 1: handleTextInput(registerEmail, 50); break;
+        case 2: handleTextInput(registerPhone, 20); break;
+        case 3: handleTextInput(registerPass, 30); break;
+        case 4: handleTextInput(registerPassConfirm, 30); break;
+    }
+}
+
+void handleAdminInput() {
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        Vector2 mousePos = GetMousePosition();
+        int cx = getCenterX();
+        
+        Rectangle boxes[5] = {
+            {(float)(cx - 300), 200, 600, 40},
+            {(float)(cx - 300), 270, 600, 40},
+            {(float)(cx - 300), 340, 600, 40},
+            {(float)(cx - 300), 410, 600, 40},
+            {(float)(cx - 300), 480, 600, 40}
+        };
+        
+        for (int i = 0; i < 5; i++) {
+            if (CheckCollisionPointRec(mousePos, boxes[i])) {
+                adminFocusField = i;
+                break;
+            }
+        }
+    }
+    
+    if (IsKeyPressed(KEY_TAB)) {
+        adminFocusField = (adminFocusField + 1) % 5;
+    }
+    
+    switch (adminFocusField) {
+        case 0: handleTextInput(adminId, 20); break;
+        case 1: handleTextInput(adminTipo, 30); break;
+        case 2: handleTextInput(adminNome, 100); break;
+        case 3: handleTextInput(adminSpecs, 200); break;
+        case 4: 
+            {
+                int key = GetCharPressed();
+                while (key > 0) {
+                    if (((key >= '0' && key <= '9') || key == '.' || key == ',') && adminPreco.length() < 15) {
+                        if (key == ',') key = '.';
+                        adminPreco += (char)key;
+                    }
+                    key = GetCharPressed();
+                }
+                if (IsKeyPressed(KEY_BACKSPACE) && !adminPreco.empty()) {
+                    adminPreco.pop_back();
+                }
+            }
+            break;
     }
 }
 
 // ==================== MAIN ====================
 
 int main() {
-    InitWindow(1024, 768, "Build Computer - Sistema de Montagem de PC");
+    const int screenWidth = 1280;
+    const int screenHeight = 720;
+    
+    InitWindow(screenWidth, screenHeight, "Build Computer - Sistema de Montagem de PC");
     SetTargetFPS(60);
     
-    arialFont = LoadFontEx("resourcer/Arial.ttf", 32, 0, 0);
-    if (arialFont.texture.id == 0) arialFont = GetFontDefault();
+    arialFont = GetFontDefault();
     
     loadAccounts();
-    loadComponents("componentes.realyb");
+    if (!loadComponents("componentes.realyb")) {
+        cout << "Aviso: Arquivo de componentes nao encontrado. Criando arquivo padrao..." << endl;
+        
+        catalog.push_back({"CPU001", "CPU", "Intel Core i5-12400F", "6-Core, 12-Thread, 2.5GHz", 899.99});
+        catalog.push_back({"CPU002", "CPU", "AMD Ryzen 5 5600X", "6-Core, 12-Thread, 3.7GHz", 1099.99});
+        catalog.push_back({"GPU001", "GPU", "NVIDIA RTX 3060", "12GB GDDR6", 2499.99});
+        catalog.push_back({"GPU002", "GPU", "AMD RX 6600", "8GB GDDR6", 1899.99});
+        catalog.push_back({"RAM001", "RAM", "Corsair Vengeance 16GB", "DDR4 3200MHz", 399.99});
+        catalog.push_back({"RAM002", "RAM", "Kingston Fury 32GB", "DDR4 3600MHz", 799.99});
+        catalog.push_back({"MB001", "Motherboard", "ASUS Prime B550M", "AMD AM4, Micro-ATX", 699.99});
+        catalog.push_back({"MB002", "Motherboard", "MSI B660M Mortar", "Intel LGA1700, Micro-ATX", 899.99});
+        catalog.push_back({"PSU001", "PSU", "Corsair CV650", "650W 80+ Bronze", 449.99});
+        catalog.push_back({"PSU002", "PSU", "EVGA 750 G5", "750W 80+ Gold", 699.99});
+        catalog.push_back({"CASE001", "Case", "NZXT H510", "Mid Tower ATX", 499.99});
+        catalog.push_back({"CASE002", "Case", "Cooler Master TD500", "Mid Tower RGB", 599.99});
+        catalog.push_back({"COOL001", "Cooler", "Cooler Master Hyper 212", "Tower Air Cooler", 199.99});
+        catalog.push_back({"COOL002", "Cooler", "Corsair H100i", "240mm AIO Liquid", 599.99});
+        catalog.push_back({"SSD001", "SSD", "Samsung 980 500GB", "NVMe M.2", 349.99});
+        catalog.push_back({"SSD002", "SSD", "WD Black SN850 1TB", "NVMe Gen4", 699.99});
+        catalog.push_back({"HDD001", "HDD", "Seagate Barracuda 2TB", "7200 RPM SATA", 399.99});
+        
+        saveComponents();
+    }
     
     while (!WindowShouldClose()) {
-        // ==================== INPUT HANDLING ====================
-        
-        // Input para tela de LOGIN
-        if (currentScreen == LOGIN) {
-            int key = GetCharPressed();
-            while (key > 0) {
-                if (key >= 32 && key <= 126) {
-                    if (loginFocusUser && loginUser.length() < 30) loginUser += (char)key;
-                    else if (!loginFocusUser && loginPass.length() < 30) loginPass += (char)key;
-                }
-                key = GetCharPressed();
-            }
-            
-            if (IsKeyPressed(KEY_BACKSPACE)) {
-                if (loginFocusUser && !loginUser.empty()) loginUser.pop_back();
-                else if (!loginFocusUser && !loginPass.empty()) loginPass.pop_back();
-            }
-            
-            if (IsKeyPressed(KEY_TAB)) loginFocusUser = !loginFocusUser;
-            
-            if (IsKeyPressed(KEY_ENTER)) {
-                bool found = false;
-                for (auto &acc : accounts) {
-                    if (acc.username == loginUser && acc.password == loginPass) {
-                        currentUser = acc.username;
-                        isCurrentUserAdmin = acc.isAdmin;
-                        currentScreen = MENU;
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    // Mostrar mensagem de erro (pode adicionar variável de feedback)
-                    loginPass = "";
-                }
-            }
-            
-            Vector2 mousePos = GetMousePosition();
-            Rectangle userBox = {(float)(getCenterX() - 200), (float)(getCenterY() + 80), 400, 40};
-            Rectangle passBox = {(float)(getCenterX() - 200), (float)(getCenterY() + 160), 400, 40};
-            
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                loginFocusUser = CheckCollisionPointRec(mousePos, userBox);
-                if (CheckCollisionPointRec(mousePos, passBox)) loginFocusUser = false;
-            }
-            
-            Rectangle loginBtn = {(float)(getCenterX() - 210), (float)(getCenterY() + 240), 180, 50};
-            Rectangle registerBtn = {(float)(getCenterX() + 30), (float)(getCenterY() + 240), 180, 50};
-            
-            if (CheckCollisionPointRec(mousePos, loginBtn) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                bool found = false;
-                for (auto &acc : accounts) {
-                    if (acc.username == loginUser && acc.password == loginPass) {
-                        currentUser = acc.username;
-                        isCurrentUserAdmin = acc.isAdmin;
-                        currentScreen = MENU;
-                        loginUser = loginPass = "";
-                        found = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (CheckCollisionPointRec(mousePos, registerBtn) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                currentScreen = REGISTER;
-                registerUser = registerPass = registerPassConfirm = registerEmail = registerPhone = registerMessage = "";
-                registerFocusField = 0;
-            }
-        }
-        
-        // Input para tela de REGISTER
-        if (currentScreen == REGISTER) {
-            int key = GetCharPressed();
-            while (key > 0) {
-                if (key >= 32 && key <= 126) {
-                    if (registerFocusField == 0 && registerUser.length() < 30) registerUser += (char)key;
-                    else if (registerFocusField == 1 && registerEmail.length() < 50) registerEmail += (char)key;
-                    else if (registerFocusField == 2 && registerPhone.length() < 20) registerPhone += (char)key;
-                    else if (registerFocusField == 3 && registerPass.length() < 30) registerPass += (char)key;
-                    else if (registerFocusField == 4 && registerPassConfirm.length() < 30) registerPassConfirm += (char)key;
-                }
-                key = GetCharPressed();
-            }
-            
-            if (IsKeyPressed(KEY_BACKSPACE)) {
-                if (registerFocusField == 0 && !registerUser.empty()) registerUser.pop_back();
-                else if (registerFocusField == 1 && !registerEmail.empty()) registerEmail.pop_back();
-                else if (registerFocusField == 2 && !registerPhone.empty()) registerPhone.pop_back();
-                else if (registerFocusField == 3 && !registerPass.empty()) registerPass.pop_back();
-                else if (registerFocusField == 4 && !registerPassConfirm.empty()) registerPassConfirm.pop_back();
-            }
-            
-            if (IsKeyPressed(KEY_TAB)) {
-                registerFocusField = (registerFocusField + 1) % 5;
-            }
-            
-            Vector2 mousePos = GetMousePosition();
-            int cx = getCenterX();
-            int cy = getCenterY();
-            
-            Rectangle boxes[5] = {
-                {(float)(cx - 250), (float)(cy - 120), 500, 38},
-                {(float)(cx - 250), (float)(cy - 60), 500, 38},
-                {(float)(cx - 250), (float)cy, 500, 38},
-                {(float)(cx - 250), (float)(cy + 60), 500, 38},
-                {(float)(cx - 250), (float)(cy + 120), 500, 38}
-            };
-            
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                for (int i = 0; i < 5; i++) {
-                    if (CheckCollisionPointRec(mousePos, boxes[i])) {
-                        registerFocusField = i;
-                        break;
-                    }
-                }
-            }
-            
-            Rectangle createBtn = {(float)(cx - 150), (float)(cy + 220), 130, 45};
-            Rectangle backBtn = {(float)(cx + 20), (float)(cy + 220), 130, 45};
-            
-            if (CheckCollisionPointRec(mousePos, createBtn) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                if (registerUser.empty() || registerEmail.empty() || registerPhone.empty() || 
-                    registerPass.empty() || registerPassConfirm.empty()) {
-                    registerMessage = "Preencha todos os campos!";
-                } else if (!validateEmail(registerEmail)) {
-                    registerMessage = "Email invalido!";
-                } else if (!validatePhone(registerPhone)) {
-                    registerMessage = "Telemovel invalido!";
-                } else if (registerPass != registerPassConfirm) {
-                    registerMessage = "As senhas nao coincidem!";
-                } else {
-                    bool userExists = false;
-                    for (auto &acc : accounts) {
-                        if (acc.username == registerUser) {
-                            userExists = true;
-                            break;
-                        }
-                    }
-                    
-                    if (userExists) {
-                        registerMessage = "Usuario ja existe!";
-                    } else {
-                        Account newAcc;
-                        newAcc.username = registerUser;
-                        newAcc.password = registerPass;
-                        newAcc.email = registerEmail;
-                        newAcc.phone = registerPhone;
-                        newAcc.isAdmin = false;
-                        accounts.push_back(newAcc);
-                        saveAccounts();
-                        
-                        registerMessage = "Conta criada com sucesso!";
-                        registerUser = registerPass = registerPassConfirm = registerEmail = registerPhone = "";
-                    }
-                }
-            }
-            
-            if (CheckCollisionPointRec(mousePos, backBtn) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                currentScreen = LOGIN;
-            }
-        }
-        
-        // Input para tela de ADMIN_ADD
-        if (currentScreen == ADMIN_ADD) {
-            int key = GetCharPressed();
-            while (key > 0) {
-                if (key >= 32 && key <= 126) {
-                    if (adminFocusField == 0 && adminId.length() < 20) adminId += (char)key;
-                    else if (adminFocusField == 1 && adminTipo.length() < 30) adminTipo += (char)key;
-                    else if (adminFocusField == 2 && adminNome.length() < 50) adminNome += (char)key;
-                    else if (adminFocusField == 3 && adminSpecs.length() < 100) adminSpecs += (char)key;
-                    else if (adminFocusField == 4 && adminPreco.length() < 15) {
-                        char c = (char)key;
-                        if (isdigit(c) || c == '.' || c == ',') adminPreco += c;
-                    }
-                }
-                key = GetCharPressed();
-            }
-            
-            if (IsKeyPressed(KEY_BACKSPACE)) {
-                if (adminFocusField == 0 && !adminId.empty()) adminId.pop_back();
-                else if (adminFocusField == 1 && !adminTipo.empty()) adminTipo.pop_back();
-                else if (adminFocusField == 2 && !adminNome.empty()) adminNome.pop_back();
-                else if (adminFocusField == 3 && !adminSpecs.empty()) adminSpecs.pop_back();
-                else if (adminFocusField == 4 && !adminPreco.empty()) adminPreco.pop_back();
-            }
-            
-            if (IsKeyPressed(KEY_TAB)) {
-                adminFocusField = (adminFocusField + 1) % 5;
-            }
-            
-            Vector2 mousePos = GetMousePosition();
-            int cx = getCenterX();
-            
-            Rectangle adminBoxes[5] = {
-                {(float)(cx - 300), 200, 600, 40},
-                {(float)(cx - 300), 270, 600, 40},
-                {(float)(cx - 300), 340, 600, 40},
-                {(float)(cx - 300), 410, 600, 40},
-                {(float)(cx - 300), 480, 600, 40}
-            };
-            
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                for (int i = 0; i < 5; i++) {
-                    if (CheckCollisionPointRec(mousePos, adminBoxes[i])) {
-                        adminFocusField = i;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        // Input para tela de ADMIN_EDIT
-        if (currentScreen == ADMIN_EDIT && adminSelectedIndex != -1) {
-            int key = GetCharPressed();
-            while (key > 0) {
-                if (key >= 32 && key <= 126) {
-                    if (adminFocusField == 0 && adminId.length() < 20) adminId += (char)key;
-                    else if (adminFocusField == 1 && adminTipo.length() < 30) adminTipo += (char)key;
-                    else if (adminFocusField == 2 && adminNome.length() < 50) adminNome += (char)key;
-                    else if (adminFocusField == 3 && adminSpecs.length() < 100) adminSpecs += (char)key;
-                    else if (adminFocusField == 4 && adminPreco.length() < 15) {
-                        char c = (char)key;
-                        if (isdigit(c) || c == '.' || c == ',') adminPreco += c;
-                    }
-                }
-                key = GetCharPressed();
-            }
-            
-            if (IsKeyPressed(KEY_BACKSPACE)) {
-                if (adminFocusField == 0 && !adminId.empty()) adminId.pop_back();
-                else if (adminFocusField == 1 && !adminTipo.empty()) adminTipo.pop_back();
-                else if (adminFocusField == 2 && !adminNome.empty()) adminNome.pop_back();
-                else if (adminFocusField == 3 && !adminSpecs.empty()) adminSpecs.pop_back();
-                else if (adminFocusField == 4 && !adminPreco.empty()) adminPreco.pop_back();
-            }
-            
-            if (IsKeyPressed(KEY_TAB)) {
-                adminFocusField = (adminFocusField + 1) % 5;
-            }
-            
-            Vector2 mousePos = GetMousePosition();
-            int cx = getCenterX();
-            
-            Rectangle adminBoxes[5] = {
-                {(float)(cx - 300), 200, 600, 40},
-                {(float)(cx - 300), 270, 600, 40},
-                {(float)(cx - 300), 340, 600, 40},
-                {(float)(cx - 300), 410, 600, 40},
-                {(float)(cx - 300), 480, 600, 40}
-            };
-            
-            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                for (int i = 0; i < 5; i++) {
-                    if (CheckCollisionPointRec(mousePos, adminBoxes[i])) {
-                        adminFocusField = i;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        // ==================== RENDERING ====================
-        
         BeginDrawing();
         ClearBackground({15, 15, 15, 255});
         
         switch (currentScreen) {
             case LOGIN:
                 drawLoginScreen();
+                handleLoginInput();
                 break;
+                
             case REGISTER:
                 drawRegisterScreen();
+                handleRegisterInput();
                 break;
+                
             case MENU:
                 drawMenuScreen();
                 break;
+                
             case ESCOLHER_PECAS:
                 drawEscolherPecasScreen();
                 break;
+                
             case VER_PRECOS:
                 drawVerPrecosScreen();
                 break;
+                
             case COMO_MONTAR:
                 drawComoMontarScreen();
                 break;
+                
             case ADMIN_PANEL:
                 drawAdminPanelScreen();
                 break;
+                
             case ADMIN_ADD:
                 drawAdminAddScreen();
+                handleAdminInput();
                 break;
+                
             case ADMIN_EDIT:
                 drawAdminEditScreen();
+                if (adminSelectedIndex != -1) {
+                    handleAdminInput();
+                }
                 break;
+                
             case ADMIN_DELETE:
                 drawAdminDeleteScreen();
                 break;
@@ -1381,8 +1361,6 @@ int main() {
         EndDrawing();
     }
     
-    UnloadFont(arialFont);
     CloseWindow();
-    
     return 0;
 }
